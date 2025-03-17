@@ -20,22 +20,15 @@ Command-line driven program to compile bitfield/script and other go code into un
 - default the name of the command to "gocmd"
 - optionally specify a unique name for the command
 - optionally specify additional imports (e.g. import os if you need to pass arguments to the resulting command)
-
 - optionally specify a file for the code. If so, assume the file is the entire code, including main function and imports.
-- provide an option to spit out a skeleton for a file
+- provide an option to spit out a skeletal template for a file
 - provide an option to save the source in the project under the command name (ie. for name=FindFiles, src file will be <project>/src/FindFiles.go)
 - provide an option to output the full path to the source file previously saved to the project (so can edit in your favorite code editor)
 - provide an option to output the path to the project folder
-- support use of shebang to immediately execute the command inline. Shebang invokes the command and passes the filename of the script as the
-	first argument. So, "#!/<dir>/goscripts -r -f" should effectively act the same as combining file and run flags on the command line. For the
-	file option, always look for and strip out the shebang line if present.
 - provide an option to execute or run the code after compilation
-- provide an option to "go get" a required package (Arguably not necessary. Just explain in README.md that external packages might require a go get first.)
-
-Implementation:
-- Use go template to populate a skeleton main function
-- Execute go build command on the filled in template from this code
-- Execute the binary if flag to run is provided
+- support use of shebang to immediately execute the command inline. Shebang invokes the command and passes the filename of the script as the
+	first argument. So, "#!/usr/bin/env -S goscripts -x -f" should effectively act the same as combining file and run flags on the command line. For the
+	file option, always look for and strip out the shebang line if present.
 */
 
 type Repl struct {
@@ -75,9 +68,9 @@ func readSourceFile(filename string) *bytes.Buffer {
 	return buf
 }
 
-func processTemplate(repl Repl) *bytes.Buffer {
-	var tmplFile = "script.tmpl"
-	tmpl, err := template.New(tmplFile).ParseFiles(tmplFile)
+func processTemplate(dir string, repl Repl) *bytes.Buffer {
+	var tmplFile = dir + "/script.tmpl"
+	tmpl, err := template.New("script.tmpl").ParseFiles(tmplFile)
 	if err != nil {
 		panic(err)
 	}
@@ -132,25 +125,45 @@ func main() {
 	var printTemplate bool
 	var execCode bool
 
-	flag.StringVar(&name, "name", "gocmd", "A name for your command (a string). Defaults to gocmd.")
-	flag.StringVar(&name, "n", "gocmd", "A name for your command (a string). Defaults to gocmd.")
-	flag.StringVar(&imports, "imports", "", "A comma-separated list of go packages (a string)")
-	flag.StringVar(&imports, "i", "", "A comma-separated list of go packages (a string)")
-	flag.StringVar(&code, "code", "fmt.Println(\"Your Code Here!\")", "Your code to run (a string)")
-	flag.StringVar(&code, "c", "fmt.Println(\"Your Code Here!\")", "Your code to run (a string)")
+	flag.StringVar(&name, "name", "gocmd", "A name for your command. Defaults to gocmd.")
+	flag.StringVar(&name, "n", "gocmd", "A name for your command. Defaults to gocmd.")
+	flag.StringVar(&imports, "imports", "", "A comma-separated list of go packages to import. Not used with --file option.")
+	flag.StringVar(&imports, "i", "", "A comma-separated list of go packages to import. Not used with --file option.")
+	flag.StringVar(&code, "code", "", "The code of your command. Defaults to empty string.")
+	flag.StringVar(&code, "c", "", "The code of your command. Defaults to empty string.")
 
-	flag.StringVar(&inputFile, "file", "", "A go src file, complete with main function and imports (a string)")
-	flag.StringVar(&inputFile, "f", "", "A go src file, complete with main function and imports (a string)")
-	flag.BoolVar(&saveSource, "savesrc", false, "A boolean flag. Saves a source file <cmd name>.go to the project. Defaults to false if absent.")
-	flag.BoolVar(&saveSource, "s", false, "A boolean flag. Saves a source file <cmd name>.go to the project. Defaults to false if absent.")
+	flag.StringVar(&inputFile, "file", "", "A go src file, complete with main function and imports. Alternative to --code and --imports options.")
+	flag.StringVar(&inputFile, "f", "", "A go src file, complete with main function and imports. Alternative to --code and --imports options.")
+	flag.BoolVar(&saveSource, "save", false, "Save the source file <name>.go to the project src folder.")
+	flag.BoolVar(&saveSource, "s", false, "Save the source file <name>.go to the project src folder.")
 
-	flag.BoolVar(&printPath, "path", false, "A boolean flag. If true, prints the path to the source file, if name provided, or project. Defaults to false.")
-	flag.BoolVar(&printPath, "p", false, "A boolean flag. If true, prints the path to the source file, if name provided, or project. Defaults to false.")
-	flag.BoolVar(&printTemplate, "template", false, "A boolean flag. If true, prints the template to stdout to facilitate writing a source file. Defaults to false.")
-	flag.BoolVar(&printTemplate, "t", false, "A boolean flag. If true, prints the template to stdout to facilitate writing a source file. Defaults to false.")
+	flag.BoolVar(&printPath, "path", false, "Print the path to the source file, if name provided, or to the project.")
+	flag.BoolVar(&printPath, "p", false, "Print the path to the source file, if name provided, or to the project.")
+	flag.BoolVar(&printTemplate, "template", false, "Print a template go source file to stdout. After edits, use --file to compile with goscript.")
+	flag.BoolVar(&printTemplate, "t", false, "Print a template go source file to stdout. After edits, use --file to compile with goscript.")
 
 	flag.BoolVar(&execCode, "exec", false, "A boolean flag. If true, execute the resulting binary. Defaults to false.")
 	flag.BoolVar(&execCode, "x", false, "A boolean flag. If true, execute the resulting binary. Defaults to false.")
+
+	// Custom usage function
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "goscripts (see https://github.com/fkmiec/goscripts)\n\n")
+		fmt.Fprintf(os.Stderr, "Usage: %s [options]\n", os.Args[0])
+		fmt.Fprintln(os.Stderr, "Options:")
+		fmt.Fprintln(os.Stderr, "  --code|-c string\n\tThe code of your command. Defaults to empty string.")
+		fmt.Fprintln(os.Stderr, "  --imports|-i string\n\tA comma-separated list of go packages to import. Not used with --file option.")
+		fmt.Fprintln(os.Stderr, "  --file|-f string\n\tA go src file, complete with main function and imports. Alternative to --code and --imports options.")
+		fmt.Fprintln(os.Stderr, "  --name|-n string\n\tA name for your command. Defaults to gocmd.")
+		fmt.Fprintln(os.Stderr, "  --save|-s\n\tSave the source file <name>.go to the project src folder.")
+		fmt.Fprintln(os.Stderr, "  --path|-p\n\tPrint the path to the source file, if name provided, or to the project.")
+		fmt.Fprintln(os.Stderr, "  --template|-t\n\tPrint a template go source file to stdout. After edits, use --file to compile with goscript.")
+		fmt.Fprintln(os.Stderr, "  --exec|-x\n\tExecute the resulting binary.")
+		fmt.Fprintln(os.Stderr, "\nExample (Compile with default name gocmd. Execute gocmd.):")
+		fmt.Fprintf(os.Stderr, "  %s --code \"script.Echo(\\\" Hello World! \\\").Stdout()\";gocmd\n", os.Args[0])
+		fmt.Fprintln(os.Stderr, "\nExample shebang in 'myscript.go' file:")
+		fmt.Fprintf(os.Stderr, "  (1) Add '#!/usr/bin/env -S %s -x -f' to the top of your go source file.\n", os.Args[0])
+		fmt.Fprintln(os.Stderr, "  (2) Set execute permission and type \"./myscript.go\" as you would with a shell script.\n")
+	}
 
 	flag.Parse()
 
@@ -172,8 +185,12 @@ func main() {
 		return //Exit the program after printing the path
 	}
 
-	//Handle typical one-liner code specified on command line
-	if inputFile == "" {
+	//Handle a regular go source file (potentially with a shebang (#!) at the top)
+	if inputFile != "" {
+		buf = readSourceFile(inputFile)
+
+		//Handle typical one-liner code specified on command line
+	} else if printTemplate || code != "" {
 		//Default use case for this little script builder is the use of bitfield/script.
 		//So, we try to include that import if not given explicitly.
 		if strings.Contains(code, "script.") {
@@ -193,7 +210,7 @@ func main() {
 			Code:    code,
 		}
 
-		buf = processTemplate(repl)
+		buf = processTemplate(dir, repl)
 
 		//Helper code prints an empty template to give a starting point when creating an external file manually
 		if printTemplate {
@@ -204,10 +221,14 @@ func main() {
 			}
 			return //exit the program after printing the template
 		}
-
-		//Handle a regular go source file (potentially with a shebang (#!) at the top)
+		//Handle compiling a pre-existing source file located in the project/src folder
+	} else if name != "gocmd" {
+		srcFilename := dir + "/src/" + name + ".go"
+		buf = readSourceFile(srcFilename)
+		//Print usage and exit
 	} else {
-		buf = readSourceFile(inputFile)
+		flag.Usage()
+		os.Exit(1)
 	}
 
 	//Save source and compile binary
@@ -219,6 +240,7 @@ func main() {
 
 	writeFile(srcFilename, buf)
 	cmd := exec.Command("go", "build", "-o", binFilename, srcFilename)
+	cmd.Dir = dir
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -233,7 +255,7 @@ func main() {
 		if err != nil {
 			fmt.Printf("%v: %s\n", err, out)
 		} else {
-			fmt.Printf("%s\n", out)
+			fmt.Print(string(out))
 		}
 	}
 }
