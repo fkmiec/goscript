@@ -69,7 +69,7 @@ Example shebang in 'myscript.go' file:
 
 ### Compile and Execute in Two Steps (Recommended)
 
-If we remove --exec, the code is compiled into a binary called `gocmd` in the `[project]/bin` folder.
+With the --code (or -c) option, the code is compiled into a binary called `gocmd` in the `[project]/bin` folder.
 ```
 > $ goscript -c 'script.FindFiles("/home/fkmiec/.config").Match("vlc").Stdout()'
 > $ gocmd                                                                      
@@ -78,6 +78,8 @@ If we remove --exec, the code is compiled into a binary called `gocmd` in the `[
 ```
 
 ### Compile and Execute in One Step with --exec
+
+Adding the --exec option will cause the code to be executed immediately after compilation (similar to 'go run').
 
 ```
 > $ goscript --exec -c 'script.FindFiles("/home/fkmiec/.config").Match("vlc").Stdout()'
