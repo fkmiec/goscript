@@ -1,16 +1,26 @@
 # goscripts
 
-**Goscripts** is a small utility to make it easier to use Go as a scripting language. It was inspired by and implemented to leverage https://github.com/bitfield/script, a Go package aimed at bringing unix-like piped commands to Go. 
+**Goscripts** is a utility to make it easier to use Go as a scripting language. It was inspired by and implemented to leverage https://github.com/bitfield/script, a Go package aimed at bringing unix-like piped commands to Go.
 
-The Go compiler is fast enough that using Go for scripting tasks can be a good choice. There are challenges, however, in that it must be compiled and that modern Go requires modules and does not support "go get -u" and the concept of a global GOPATH. Other solutions, such as goscript.sh, gosh and gorun, either fail to account for some of these challenges or create and delete temporary projects, folders and files repeatedly and don't really provide an efficient or effective way to re-use your scripts. 
+The Go compiler is fast enough that using Go for scripting tasks can be a good choice. There are challenges, however. Modern Go requires modules and does not support "go get -u" and the concept of a global GOPATH. Other projects have attempted to do something similar, but either fail to account for some of these challenges or create and delete temporary projects, folders and files for every execution and don't provide an efficient or effective way to re-use your scripts. 
 
 Enter **Goscripts**.  
 
-The **goscript** executable will wrap any code specified on the command line with a main function and apply any specified imports before compiling and optionally executing the code. If no name is given, the binary will be `[project folder]/bin/gocmd` and the source file will be `[project folder]/src/tmp.go`. If the name is given, the binary and source files will reflect that name. By adding the `[project]` and `[project]/bin` folders to your PATH environment variable, the resulting binaries will be immediately available to execute like any other system commands. 
+## Features
 
-If the --file option is used, then **goscript** will assume the file is a complete go source file and build it _**as is**_, rather than attempting to add imports and wrap code in a main function. It would be error-prone to attempt to anticipate and edit for the possible presence of existing imports, variables, functions and more in the file. However, to facilitate writing the go source file, the --template option is provided to print out the typical boilerplate as a starting point. That template can be augmented with imports and some basic code to start from if the --imports and --code options are provided. 
+* Execute simple go code directly on the command line
+* Write go source files and execute them like a script with shebang
+* Compile go code into named binaries for repeated use. Build up a library of custom commands. 
+* Everything in one project, accessible system-wide through the **goscript** command. 
+* Options to generate boilerplate for go scripts, list previously compiled commands and print paths to project and source code to enable editing and maintenance. 
 
-A similar option for a template file to start from would be to specify the --save and --name options to cause a named source file to be created in the project src folder. You can then get the --path to that source file and edit it in your favorite editor. If you then provide the --name without the --code or --file options, it will read the source file from the src folder and recompile it. 
+## How It Works
+
+The **goscript** executable will wrap any code specified on the command line with a main function and apply any specified imports before compiling and optionally executing the code. If no name is given, the binary will be `[project folder]/bin/gocmd` and the source file will be `[project folder]/src/tmp.go`. If the name is given, the binary and source files will reflect that name. By adding the `[project]` and `[project]/bin` folders to your PATH environment variable, the resulting binaries will be immediately available to execute like other system commands (such as ls, cat, echo, grep, etc.). 
+
+If the --file option is used, then **goscript** will assume the file is a complete go source file and build it _**as is**_, rather than attempting to add imports and wrap code in a main function. However, to facilitate writing the go source file, the --template option is provided to print out the typical boilerplate as a starting point. That template can be augmented with imports and some basic code to start from if the --imports and --code options are provided. 
+
+See examples, below, for more details. 
 
 ## Install
 
@@ -29,21 +39,23 @@ NOTE: If you prefer to create another Go project for your scripts, rather than u
 Usage: goscript [options]
 Options:
   --code|-c string
-	The code of your command. Defaults to empty string.
+	    The code of your command. Defaults to empty string.
   --imports|-i string
-	A comma-separated list of go packages to import. Not used with --file option.
+	    A comma-separated list of go packages to import. Not used with --file option.
   --file|-f string
-	A go src file, complete with main function and imports. Alternative to --code and --imports options.
+	    A go src file, complete with main function and imports. Alternative to --code and --imports options.
   --name|-n string
-	A name for your command. Defaults to gocmd.
+	    A name for your command. Defaults to gocmd.
   --save|-s
-	Save the source file <name>.go to the project src folder.
+	    Save the source file <name>.go to the project src folder.
+  --list|-l
+	    Print the list of previously-compiled commands.
   --path|-p
-	Print the path to the source file, if name provided, or to the project.
+	    Print the path to the source file, if name provided, or to the project.
   --template|-t
-	Print a template go source file to stdout. After edits, use --file to compile with goscript.
+	    Print a template go source file to stdout. After edits, use --file to compile with goscript.
   --exec|-x
-	Execute the resulting binary.
+	    Execute the resulting binary.
 
 Example (Compile with default name gocmd. Execute gocmd.):
   goscript --code "script.Echo(\" Hello World! \").Stdout()";gocmd
@@ -55,6 +67,16 @@ Example shebang in 'myscript.go' file:
 
 ## Examples
 
+### Compile and Execute in Two Steps (Recommended)
+
+If we remove --exec, the code is compiled into a binary called `gocmd` in the `[project]/bin` folder.
+```
+> $ goscript -c 'script.FindFiles("/home/fkmiec/.config").Match("vlc").Stdout()'
+> $ gocmd                                                                      
+/home/fkmiec/.config/vlc/vlc-qt-interface.conf
+/home/fkmiec/.config/vlc/vlcrc
+```
+
 ### Compile and Execute in One Step with --exec
 
 ```
@@ -63,22 +85,12 @@ Example shebang in 'myscript.go' file:
 /home/fkmiec/.config/vlc/vlcrc
 ```
 
-NOTE - While it may seem convenient or efficient to use --exec (or -x) to execute immediately, there are bound to be limitations with asking goscript to invoke the execution, rather than letting your shell do it. For one, when using --exec, there is no good way to pass arguments or pipe to stdin since anything passed (or piped) will be assumed to be inputs to **goscript**, rather than the resulting binary command. Accordingly, it's recommended to compile first and separately invoke the resulting binary. 
+NOTE - While it may seem convenient or efficient to use --exec (or -x) to execute immediately, there are limitations with asking goscript to invoke the execution, rather than compiling first and executing the command directly. For one, when using --exec, there is no good way to pass arguments or pipe to stdin since anything passed (or piped) will be assumed to be inputs to **goscript**, rather than the resulting binary command. Accordingly, it's recommended to compile first and separately invoke the resulting binary. 
 
-If desired, you can put both commands on the same line in the terminal, separated by a semi-colon. In the example below, the unnamed script will use the default name of 'gocmd', which we add with a semi-colon. The code appears to execute in one step. 
+If desired, you can put both commands on the same line in the terminal, separated by a semi-colon. In the example below, which omits the --exec option, the unnamed script will use the default name of 'gocmd', which we add with a semi-colon. The code appears to execute in one step. 
 
 ```
 > $ goscript -c 'script.FindFiles("/home/fkmiec/.config").Match("vlc").Stdout()';gocmd
-/home/fkmiec/.config/vlc/vlc-qt-interface.conf
-/home/fkmiec/.config/vlc/vlcrc
-```
-
-### Compile and Execute in Two Steps
-
-If we remove --exec, the code is compiled into a binary called `gocmd` in the `[project]/bin` folder.
-```
-> $ goscript -c 'script.FindFiles("/home/fkmiec/.config").Match("vlc").Stdout()'
-> $ gocmd                                                                      
 /home/fkmiec/.config/vlc/vlc-qt-interface.conf
 /home/fkmiec/.config/vlc/vlcrc
 ```
@@ -92,7 +104,9 @@ If we remove --exec, the code is compiled into a binary called `gocmd` in the `[
 /home/fkmiec/.config/vlc/vlcrc
 ```
 
-### Use --imports to Enable Passing Arguments
+### Use --imports to Leverage Additional Packages
+
+If you need to pass command-line arguments, for instance, you need to import the "os" package.
 
 ```
 > $ goscript --name 'gofind' --imports 'os' -c 'script.FindFiles(os.Args[1]).Match(os.Args[2]).Stdout()'
@@ -102,11 +116,11 @@ If we remove --exec, the code is compiled into a binary called `gocmd` in the `[
 
 ### Use --file to Pass a Source File
 
-Go scripts are ultimately just go code. They require a main function and necessary imports. For simple one-liners, **goscript** will help assemble a boilerplate go source file. For more complex scripts, **goscript** assumes you will provide a complete go source file. The file may include, for example, variables and other functions besides main. The --template option can be specified to have **goscript** provide a boilerplace source file to start from. 
+Go scripts are ultimately just go code. At minimum, that requires a main function, package declaration and imports. For simple one-liners, **goscript** will help assemble a boilerplate go source file. For more complex scripts, **goscript** assumes you will provide a complete go source file. The file may include, for example, variables and other functions besides main. The --template option can be specified to have **goscript** provide a boilerplate source file to start from. 
 
 Once you have a source file, you can use the --file option to pass it to **goscript** and have it compiled and placed in the project and on the PATH so it is immediately executable. 
 
-If you have this source file named "gofind.go": 
+For example, if you have this source file named "gofind.go": 
 
 ```
 package main
@@ -122,13 +136,15 @@ func main() {
 
 ```
 
-You can specify the path to the file using the --file option. 
+You can specify the path to the file using the --file option. If you supply --name and --save options, the source file will be saved in the project for future edits.  
 
 ```
-> $ goscript --file '/tmp/gofind.go' --name 'findItNow'                        
+> $ goscript --file '/tmp/gofind.go' --name 'findItNow' --save                        
 > $ findItNow '/home/fkmiec/.config' 'interface'                               
 /home/fkmiec/.config/vlc/vlc-qt-interface.conf
 ```
+
+NOTE: If you pass the --save option, a copy of the source file is saved in the project. The original file is not deleted or moved. Cleanup is at your discretion.
 
 ### Shebang
 
@@ -150,7 +166,7 @@ func main() {
 }
 ```
 
-And run it directly like a shell script:
+Modify permissions to make it executable and run it directly like a shell script:
 
 ```
 > $ ./gofind.go                                                               
@@ -158,10 +174,59 @@ And run it directly like a shell script:
 
 ```
 
-In terms of limitations, with shebang, the script has to be recompiled every time and you will run up against the same inability to pass arguments or pipe input to it that was mentioned in the first example above.
+In terms of limitations, with shebang the script has to be recompiled every time and you will run up against the same inability to pass arguments or pipe input to it that was mentioned in the --exec example above.
 
-TBD
+### List Saved Commands
 
-* Pipe from linux command to a go script to another linux command
-* Get path to project (support editing)
-* Get path to source file (support editing)
+Can't remember that command you wrote last week? The --list option will show your previously-compiled commands.
+
+```
+> $ goscript --list 
+Commands:
+	gocmd
+	gofind
+	greet
+	shebang
+```
+
+### Get Path to Project (support project maintenance)
+
+Need to clean up some old commands from the bin and src folders? Get the path to the project with the --path option. 
+
+```
+> $ goscript --path 
+/home/fkmiec/go/src/github.com/fkmiec/goscripts
+```
+
+### Get Path to Source File (support editing)
+
+With the --save option, you can save a copy of the source code for your named command. You can then use the --path option together with --name to print the path to that specific source file so that you can open it in your favorite editor and make updates. When done, calling goscripts with the just the --name option (without --code or --file) will cause the updated source file to be recompiled. Of course, you can navigate to the project folder and compile manually, but using **goscript** helps to ensure consistency.
+
+```
+> $ goscript --name 'shebang' --save --file ./tmp.go 
+
+> $ goscript --path --name 'shebang' 
+/home/fkmiec/go/src/github.com/fkmiec/goscripts/src/shebang.go
+
+(file editing omitted from example)
+
+> $ goscript --name 'shebang'                                                                                                                                
+
+> $ shebang  
+Hello Shebang!
+
+```
+
+### Pipe Goscripts Commands Together With Unix Commands
+
+While this is primarily a function of the bitfield/scripts package, it's notable that you can combine your go scripts with existing Unix / Linux commands using pipes. 
+
+```
+> $ goscript --name 'uppercase' --save --imports 'strings' --code 'script.Stdin().FilterLine(strings.ToUpper).Stdout()'
+                                                                                                                              
+> $ echo 'hello world!' | uppercase 
+HELLO WORLD!
+                                                                                                                              
+> $ echo 'hello world!' | uppercase | wc -c 
+13
+```

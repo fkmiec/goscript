@@ -5,10 +5,10 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"text/template"
 )
@@ -23,6 +23,7 @@ Command-line driven program to compile bitfield/script and other go code into un
 - optionally specify a file for the code. If so, assume the file is the entire code, including main function and imports.
 - provide an option to spit out a skeletal template for a file
 - provide an option to save the source in the project under the command name (ie. for name=FindFiles, src file will be <project>/src/FindFiles.go)
+- provide an option to list previously compiled commands
 - provide an option to output the full path to the source file previously saved to the project (so can edit in your favorite code editor)
 - provide an option to output the path to the project folder
 - provide an option to execute or run the code after compilation
@@ -41,9 +42,8 @@ var buf *bytes.Buffer
 func readSourceFile(filename string) *bytes.Buffer {
 	// Using bufio.Scanner to read line by line
 	file, err := os.Open(filename)
-	if err != nil {
-		log.Fatal(err)
-	}
+	check(err)
+
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
@@ -57,61 +57,67 @@ func readSourceFile(filename string) *bytes.Buffer {
 			continue
 		}
 		_, err := buf.WriteString(line + "\n")
-		if err != nil {
-			log.Fatal(err)
-		}
+		check(err)
 	}
 
-	if err := scanner.Err(); err != nil {
-		log.Fatal(err)
-	}
+	err = scanner.Err() //; err != nil {
+	check(err)
+
 	return buf
 }
 
 func processTemplate(dir string, repl Repl) *bytes.Buffer {
 	var tmplFile = dir + "/script.tmpl"
 	tmpl, err := template.New("script.tmpl").ParseFiles(tmplFile)
-	if err != nil {
-		panic(err)
-	}
+	check(err)
 
 	buf = bytes.NewBuffer([]byte{})
 	err = tmpl.Execute(buf, repl)
-	if err != nil {
-		panic(err)
-	}
+	check(err)
+
 	return buf
 }
 
 func writeFile(filename string, buf *bytes.Buffer) bool {
 	// Open the file for writing, creates it if it doesn't exist, or truncates if it exists.
 	file, err := os.Create(filename)
-	if err != nil {
-		fmt.Println("Error creating file:", err)
-		return false
-	}
+	check(err)
+
 	// Ensure the file is closed after the function returns.
 	defer file.Close()
 
 	// Write the buffer to the file
 	_, err = buf.WriteTo(file)
-	if err != nil {
-		fmt.Println("Error writing buffer to file:", err)
-		return false
-	}
+	check(err)
 
 	return true
 }
 
 func getProjectPath() string {
 	executablePath, err := os.Executable()
-	if err != nil {
-		fmt.Println("Error:", err)
-		return ""
-	}
+	check(err)
 
 	executableDir := filepath.Dir(executablePath)
 	return executableDir
+}
+
+func getCommandList(dir string) []string {
+	cmds := []string{}
+	list, err := os.ReadDir(dir)
+	check(err)
+	for _, entry := range list {
+		if !entry.IsDir() {
+			cmds = append(cmds, entry.Name())
+		}
+	}
+	sort.Strings(cmds)
+	return cmds
+}
+
+func check(e error) {
+	if e != nil {
+		panic(e)
+	}
 }
 
 func main() {
@@ -121,6 +127,7 @@ func main() {
 	var code string
 	var inputFile string
 	var saveSource bool
+	var listCommands bool
 	var printPath bool
 	var printTemplate bool
 	var execCode bool
@@ -142,8 +149,11 @@ func main() {
 	flag.BoolVar(&printTemplate, "template", false, "Print a template go source file to stdout. After edits, use --file to compile with goscript.")
 	flag.BoolVar(&printTemplate, "t", false, "Print a template go source file to stdout. After edits, use --file to compile with goscript.")
 
-	flag.BoolVar(&execCode, "exec", false, "A boolean flag. If true, execute the resulting binary. Defaults to false.")
-	flag.BoolVar(&execCode, "x", false, "A boolean flag. If true, execute the resulting binary. Defaults to false.")
+	flag.BoolVar(&listCommands, "list", false, "Print the list of previously-compiled commands.")
+	flag.BoolVar(&listCommands, "l", false, "Print the list of previously-compiled commands.")
+
+	flag.BoolVar(&execCode, "exec", false, "Execute the resulting binary.")
+	flag.BoolVar(&execCode, "x", false, "Execute the resulting binary.")
 
 	// Custom usage function
 	flag.Usage = func() {
@@ -155,6 +165,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "  --file|-f string\n\tA go src file, complete with main function and imports. Alternative to --code and --imports options.")
 		fmt.Fprintln(os.Stderr, "  --name|-n string\n\tA name for your command. Defaults to gocmd.")
 		fmt.Fprintln(os.Stderr, "  --save|-s\n\tSave the source file <name>.go to the project src folder.")
+		fmt.Fprintln(os.Stderr, "  --list|-l\n\tPrint the list of previously-compiled commands.")
 		fmt.Fprintln(os.Stderr, "  --path|-p\n\tPrint the path to the source file, if name provided, or to the project.")
 		fmt.Fprintln(os.Stderr, "  --template|-t\n\tPrint a template go source file to stdout. After edits, use --file to compile with goscript.")
 		fmt.Fprintln(os.Stderr, "  --exec|-x\n\tExecute the resulting binary.")
@@ -174,6 +185,7 @@ func main() {
 	//  environment variable to make this work on the user's system.
 	dir := getProjectPath()
 
+	//If user is just looking for a path, print it and exit
 	if printPath {
 		if name == "gocmd" {
 			//print the project path
@@ -183,6 +195,15 @@ func main() {
 			fmt.Println(dir + "/src/" + name + ".go")
 		}
 		return //Exit the program after printing the path
+	}
+
+	if listCommands {
+		cmds := getCommandList(dir + "/bin")
+		fmt.Println("Commands:")
+		for _, cmd := range cmds {
+			fmt.Printf("\t%s\n", cmd)
+		}
+		return //Exit the program after printing the list of commands
 	}
 
 	//Handle a regular go source file (potentially with a shebang (#!) at the top)
@@ -215,10 +236,7 @@ func main() {
 		//Helper code prints an empty template to give a starting point when creating an external file manually
 		if printTemplate {
 			_, err := buf.WriteTo(os.Stdout)
-			if err != nil {
-				fmt.Println("Error writing to stdout:", err)
-				return
-			}
+			check(err)
 			return //exit the program after printing the template
 		}
 		//Handle compiling a pre-existing source file located in the project/src folder
