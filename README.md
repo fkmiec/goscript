@@ -213,7 +213,7 @@ Commands:
 
 ### Get Path to Project (support project maintenance)
 
-Need to clean up some old commands from the bin and src folders? Get the path to the project with the --path option. 
+Need to clean up some old commands from the bin and src folders? Get the path to the project directory with the --dir option. 
 
 ```
 > $ goscript --dir 
@@ -222,7 +222,7 @@ Need to clean up some old commands from the bin and src folders? Get the path to
 
 ### Get Path to Source File (support editing)
 
-With the --save option, you can save a copy of the source code for your named command. You can then use the --path option together with --name to print the path to that specific source file so that you can open it in your favorite editor and make updates. When done, calling goscripts with the just the --name option (without --code or --file) will cause the updated source file to be recompiled. Of course, you can navigate to the project folder and compile manually, but using **goscript** helps to ensure consistency.
+With the --save option, you can save a copy of the source code for your named command. You can then use the --path option to print the path to the specified source file so that you can open it in your favorite editor and make updates. When done, calling goscripts with the just the --name option (without --code or --file) will cause the updated source file to be recompiled. Of course, you can navigate to the project folder and compile manually, but using **goscript** helps to ensure consistency.
 
 ```
 > $ goscript --name 'shebang' --save --file ./tmp.go 
