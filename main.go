@@ -3,8 +3,10 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -114,6 +116,12 @@ func getCommandList(dir string) []string {
 	return cmds
 }
 
+func checkFileExists(filePath string) bool {
+	_, error := os.Stat(filePath)
+	//return !os.IsNotExist(err)
+	return !errors.Is(error, os.ErrNotExist)
+}
+
 func check(e error) {
 	if e != nil {
 		panic(e)
@@ -128,7 +136,8 @@ func main() {
 	var inputFile string
 	var saveSource bool
 	var listCommands bool
-	var printPath bool
+	var path string
+	var printDir bool
 	var printTemplate bool
 	var execCode bool
 
@@ -144,11 +153,12 @@ func main() {
 	flag.BoolVar(&saveSource, "save", false, "Save the source file <name>.go to the project src folder.")
 	flag.BoolVar(&saveSource, "s", false, "Save the source file <name>.go to the project src folder.")
 
-	flag.BoolVar(&printPath, "path", false, "Print the path to the source file, if name provided, or to the project.")
-	flag.BoolVar(&printPath, "p", false, "Print the path to the source file, if name provided, or to the project.")
+	flag.StringVar(&path, "path", "", "Print the path to the source file specified, if exists in the project. Blank if not found.")
+	flag.StringVar(&path, "p", "", "Print the path to the source file specified, if exists in the project. Blank if not found.")
+	flag.BoolVar(&printDir, "dir", false, "Print the directory path to the project.")
+	flag.BoolVar(&printDir, "d", false, "Print the directory path to the project.")
 	flag.BoolVar(&printTemplate, "template", false, "Print a template go source file to stdout. After edits, use --file to compile with goscript.")
 	flag.BoolVar(&printTemplate, "t", false, "Print a template go source file to stdout. After edits, use --file to compile with goscript.")
-
 	flag.BoolVar(&listCommands, "list", false, "Print the list of previously-compiled commands.")
 	flag.BoolVar(&listCommands, "l", false, "Print the list of previously-compiled commands.")
 
@@ -166,17 +176,41 @@ func main() {
 		fmt.Fprintln(os.Stderr, "  --name|-n string\n\tA name for your command. Defaults to gocmd.")
 		fmt.Fprintln(os.Stderr, "  --save|-s\n\tSave the source file <name>.go to the project src folder.")
 		fmt.Fprintln(os.Stderr, "  --list|-l\n\tPrint the list of previously-compiled commands.")
-		fmt.Fprintln(os.Stderr, "  --path|-p\n\tPrint the path to the source file, if name provided, or to the project.")
+		fmt.Fprintln(os.Stderr, "  --dir|-d\n\tPrint the directory path to the project.")
+		fmt.Fprintln(os.Stderr, "  --path|-p\n\tPrint the path to the source file specified, if exists in the project. Blank if not found.")
 		fmt.Fprintln(os.Stderr, "  --template|-t\n\tPrint a template go source file to stdout. After edits, use --file to compile with goscript.")
 		fmt.Fprintln(os.Stderr, "  --exec|-x\n\tExecute the resulting binary.")
 		fmt.Fprintln(os.Stderr, "\nExample (Compile with default name gocmd. Execute gocmd.):")
 		fmt.Fprintf(os.Stderr, "  %s --code \"script.Echo(\\\" Hello World! \\\").Stdout()\";gocmd\n", os.Args[0])
 		fmt.Fprintln(os.Stderr, "\nExample shebang in 'myscript.go' file:")
-		fmt.Fprintf(os.Stderr, "  (1) Add '#!/usr/bin/env -S %s -x -f' to the top of your go source file.\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  (1) Add '#!/usr/bin/env -S %s' to the top of your go source file.\n", os.Args[0])
 		fmt.Fprintln(os.Stderr, "  (2) Set execute permission and type \"./myscript.go\" as you would with a shell script.\n")
 	}
 
 	flag.Parse()
+
+	//Separately evaluate the args to support execution with args and shebang-based execution with no flags
+	//Args beyond flags should only be present if executing, so it's (1) shebang, (2) --exec or (3) an error
+	//Scenarios (Note any of these could be straight commandline and not shebang):
+	// (1) #!/usr/bin/env -S goscript -x -f <filename> <optionally more args> (handled as normal)
+	// (2) #!/usr/bin/env -S goscript -x <filename> <optionally more args> (need to determine if first non-flag arg is a filename, and if so, set inputFile=arg[0])
+	// (3) #!/usr/bin/env -S goscript <filename> <optionally more args> (need to determine if first non-flag arg is a filename, and if so, set inputFile=arg[0] and execCode=true)
+	var subprocessArgs []string
+	if len(flag.Args()) > 0 {
+		subprocessArgs = flag.Args()
+		//check for --file flag. If not present, check if the first non-flag arg is a filename.
+		if inputFile == "" {
+			isFileExists := checkFileExists(flag.Arg(0))
+			//If the first arg is a file that exists
+			if isFileExists {
+				inputFile = flag.Arg(0) //Account for scenario 2, above
+				subprocessArgs = subprocessArgs[1:]
+				if !execCode {
+					execCode = true //Account for scenario 3, above.
+				}
+			}
+		}
+	}
 
 	//Get the path of the executable, which we assume is the project folder.
 	//NOTE: While it might typically make sense to install the binary in some other location,
@@ -185,18 +219,24 @@ func main() {
 	//  environment variable to make this work on the user's system.
 	dir := getProjectPath()
 
-	//If user is just looking for a path, print it and exit
-	if printPath {
-		if name == "gocmd" {
-			//print the project path
-			fmt.Println(dir)
-		} else {
+	//Print the location of the project folder
+	if printDir {
+		fmt.Println(dir)
+		return //Exit the program after printing the path
+	}
+
+	//Print the location of the source file, if it exists, otherwise blank
+	if path != "" {
+		srcFile := dir + "/src/" + path + ".go"
+		isFileExists := checkFileExists(srcFile)
+		if isFileExists {
 			//print the source file path
-			fmt.Println(dir + "/src/" + name + ".go")
+			fmt.Println(srcFile)
 		}
 		return //Exit the program after printing the path
 	}
 
+	//List existing commands
 	if listCommands {
 		cmds := getCommandList(dir + "/bin")
 		fmt.Println("Commands:")
@@ -250,10 +290,7 @@ func main() {
 	}
 
 	//Save source and compile binary
-	srcFilename := dir + "/src/tmp.go"
-	if saveSource {
-		srcFilename = dir + "/src/" + name + ".go"
-	}
+	srcFilename := dir + "/src/" + name + ".go"
 	binFilename := dir + "/bin/" + name
 
 	writeFile(srcFilename, buf)
@@ -265,15 +302,33 @@ func main() {
 		fmt.Printf("%v: %s\n", err, out)
 	}
 
-	//If flag to run the code was given, then execute it
+	// If flag to run the code was given, then execute it
+	// Pass stdin and any arguments to the sub-process. This will make shebang and general --exec work as expected.
 	if execCode {
-		cmd := exec.Command(binFilename)
+		if inputFile != "" {
 
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			fmt.Printf("%v: %s\n", err, out)
-		} else {
-			fmt.Print(string(out))
+			cmd := exec.Command(binFilename, subprocessArgs...)
+			cmdStdin, err := cmd.StdinPipe()
+			check(err)
+			stdin := bufio.NewReader(os.Stdin)
+
+			go func() {
+				defer cmdStdin.Close()
+				for {
+					line, err := stdin.ReadString('\n')
+					if err != nil || len(strings.TrimSpace(line)) == 0 {
+						break
+					}
+					io.WriteString(cmdStdin, line)
+				}
+			}()
+
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				fmt.Printf("%v: %s\n", err, out)
+			} else {
+				fmt.Print(string(out))
+			}
 		}
 	}
 }
