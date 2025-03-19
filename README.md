@@ -101,6 +101,8 @@ The code is compiled into a binary called `gocmd` in the `[project]/bin` folder.
 
 ### Compile and Execute in One Step with --exec
 
+Adding the --exec option will cause the code to be executed immediately after compilation (similar to 'go run').
+
 ```
 > $ goscript --exec --code 'script.FindFiles("/home/user/.config").Match("vlc").Stdout()'
 /home/user/.config/vlc/vlc-qt-interface.conf
