@@ -2,10 +2,15 @@
 package main
 
 import ( 
-    "github.com/bitfield/script"
+    "fmt"
+    "os"
 )
 
+func hello(name string) string {
+	return fmt.Sprintf("Hello %s!", name)
+}
+
 func main() {
-    script.Stdin().Echo("Hello World!").Stdout()
+    fmt.Println(hello(os.Args[1]))
 }
 

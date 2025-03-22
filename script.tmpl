@@ -1,9 +1,7 @@
-#!/usr/bin/env -S goscript
-
 package main
 
 import ( {{range .Imports}}
-    "{{.}}"{{ end }}
+    {{.}}{{ end }}
 )
 
 func main() {
