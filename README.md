@@ -63,21 +63,24 @@ Options:
 	    A go src file, complete with main function and imports. Alternative to --code and --imports options.
   --name|-n string
 	    A name for your command. Defaults to gocmd.
-  --save|-s
-	    Save the source file <name>.go to the project src folder.
   --list|-l
 	    Print the list of previously-compiled commands.
   --dir|-d
 	    Print the directory path to the project.
   --path|-p
 	    Print the path to the source file specified, if exists in the project. Blank if not found.
+  --bang|-b
+	    Print the expected shebang line.
   --template|-t
 	    Print a template go source file to stdout. After edits, use --file to compile with goscript.
   --exec|-x
 	    Execute the resulting binary.
 
-Example (Compile with default name gocmd. Execute gocmd.):
-  goscript --code "script.Echo(\" Hello World! \").Stdout()";gocmd
+Example (Compile as 'hello'. Execute hello.):
+  goscript --code 'script.Echo(" Hello World!\n").Stdout()' --name hello; hello
+
+Example (Execute immediately.):
+  goscript --exec --code 'script.Echo(" Hello World!\n").Stdout()'
 
 Example shebang in 'myscript.go' file:
   (1) Add '#!/usr/bin/env -S goscript' to the top of your go source file.
@@ -135,6 +138,12 @@ If you need to pass command-line arguments, for instance, you might need to impo
 > $ gofind '/home/user/.config' 'interface'                                  
 /home/user/.config/vlc/vlc-qt-interface.conf
 ```
+
+**NOTE** - There is a util/imports.go file in the project that defines a map of pkg alias to full pkg name for "github/bitfield/script" and the go stdlib. If code supplied using the --code option contains any of the pkg aliases defined in the map, goscript will automatically add the import to the generated source file. The intent is to reduce the amount of typing for short one-line scripts. So, for example, if you type `goscript -x -c 'fmt.Printf("Args: %v\n", os.Args[1:])' one two three`, it will add imports for fmt and os automatically and output:
+
+`Args: [one two three]`
+
+Most of the stdlib pkgs are commented out by default since it will check for all of them. You can uncomment and recompile for those you use frequently and/or add third party packages you would use frequently in that manner. This feature has no impact on code supplied in files (either through --file or using a shebang in a script).  
 
 ### Use --file to Pass a Source File
 

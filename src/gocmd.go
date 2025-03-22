@@ -1,4 +1,3 @@
-
 package main
 
 import ( 
@@ -6,11 +5,7 @@ import (
     "os"
 )
 
-func hello(name string) string {
-	return fmt.Sprintf("Hello %s!", name)
-}
-
 func main() {
-    fmt.Println(hello(os.Args[1]))
+    fmt.Printf("Args: %v\n", os.Args[1:])
 }
 

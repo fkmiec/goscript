@@ -243,7 +243,10 @@ func main() {
 	// So, before parsing the flags, check if first arg is a non-flag and an existing file.
 	// If so, make it the inputFile and remove it from the os.Args array.
 	// Beyond this one use case, we expect the user to follow convention and pass flags before non-flags.
-	nonFlagFirstArg := checkFileExists(os.Args[1])
+	var nonFlagFirstArg bool
+	if len(os.Args) > 1 {
+		nonFlagFirstArg = checkFileExists(os.Args[1])
+	}
 	if nonFlagFirstArg {
 		inputFile = os.Args[1]
 		os.Args = append(os.Args[:1], os.Args[2:]...)
