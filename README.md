@@ -131,7 +131,7 @@ And alternative to passing the --exec flag would be to put both commands on the 
 
 ### Use --imports to Leverage Additional Packages
 
-If you need to pass command-line arguments, for instance, you might need to import the "os" package.
+If you need to pass command-line arguments, for instance, you might need to import the "os" package. 
 
 ```
 > $ goscript --name 'gofind' --imports 'os' --code 'script.FindFiles(os.Args[1]).Match(os.Args[2]).Stdout()'
@@ -139,11 +139,34 @@ If you need to pass command-line arguments, for instance, you might need to impo
 /home/user/.config/vlc/vlc-qt-interface.conf
 ```
 
-**NOTE** - There is a util/imports.go file in the project that defines a map of pkg alias to full pkg name for "github/bitfield/script" and the go stdlib. If code supplied using the --code option contains any of the pkg aliases defined in the map, goscript will automatically add the import to the generated source file. The intent is to reduce the amount of typing for short one-line scripts. So, for example, if you type `goscript -x -c 'fmt.Printf("Args: %v\n", os.Args[1:])' one two three`, it will add imports for fmt and os automatically and output:
+**NOTE** - There is a util/imports.go file in the project that defines a map of pkg alias to full pkg name for "github/bitfield/script" and the go stdlib. If code supplied using the --code option contains any of the pkg aliases defined in the map, goscript will automatically add the import to the generated source file. The intent is to reduce the amount of typing for short scripts entered directly on the command-line. The following example produces a template, illustrating the imports are added automatically. 
 
-`Args: [one two three]`
+```
+> $ goscript --template --code 'fmt.Printf("ToPath: %s\n", path.Join(os.Args[1:]...))' one two three
+#!/usr/bin/env -S goscript
+package main
 
-Most of the stdlib pkgs are commented out by default since it will check for all of them. You can uncomment and recompile for those you use frequently and/or add third party packages you would use frequently in that manner. This feature has no impact on code supplied in files (either through --file or using a shebang in a script).  
+import ( 
+    "fmt"
+    "path"
+    "os"
+)
+
+func main() {
+    fmt.Printf("ToPath: %s\n", path.Join(os.Args[1:]...))
+}
+```
+
+If the --exec option is provided, it produces the expected output:
+
+```
+> $ goscript --exec --code 'fmt.Printf("ToPath: %s\n", path.Join(os.Args[1:]...))' one two three
+ToPath: one/two/three
+```
+
+You can add other packages to the util/Imports file and recompile for those you use frequently. You can also modify the pkg alias (ie. the key in the map) to allow you to use a shorter alias (e.g. "re" instead of "regexp"). 
+
+This feature has no impact on code supplied in files (either through --file or using a shebang in a script).  
 
 ### Use --file to Pass a Source File
 

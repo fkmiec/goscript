@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"text/template"
@@ -40,6 +41,7 @@ type Repl struct {
 	Code    string
 }
 
+var pkgMatcher *regexp.Regexp
 var buf *bytes.Buffer
 
 func assembleSourceFile(dir, code, imports string) *bytes.Buffer {
@@ -55,12 +57,15 @@ func assembleSourceFile(dir, code, imports string) *bytes.Buffer {
 			formattedImports = append(formattedImports, imp)
 		}
 	}
-	for k, v := range util.ImportsMap {
-		//If the key (e.g. "fmt." is used)...
-		matchKey := k + "."
-		if strings.Contains(code, matchKey) {
-			//If the explicit imports don't already include the import statement associated with the key...
-			if !strings.Contains(imports, v) {
+
+	pkgMatcher = regexp.MustCompile(`(\w+)\.`) //match a type, field or function accessor (e.g. pkg.Type or struct.Field or struct.Function)
+	matches := pkgMatcher.FindAllStringSubmatch(code, -1)
+	for _, m := range matches {
+		if len(m) > 0 {
+			k := m[1]
+			v := util.ImportsMap[k]
+
+			if v != "" {
 				//Check if the key matches the basename for the import. If so, use the import as is.
 				//Otherwise, prepend the key as an alias for the package (e.g. "re" instead of "regexp")
 				if filepath.Base(v) != k {

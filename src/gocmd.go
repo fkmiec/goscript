@@ -2,10 +2,11 @@ package main
 
 import ( 
     "fmt"
+    "path"
     "os"
 )
 
 func main() {
-    fmt.Printf("Args: %v\n", os.Args[1:])
+    fmt.Printf("ToPath: %s\n", path.Join(os.Args[1:]...))
 }
 
