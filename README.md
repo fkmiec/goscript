@@ -21,6 +21,7 @@ Enter **Goscripts**.
     - [List Saved Commands](#list-saved-commands)
     - [Get Path to Project (support project maintenance)](#get-path-to-project-support-project-maintenance)
     - [Get Path to Source File (support editing)](#get-path-to-source-file-support-editing)
+    - [Recompile Existing Commands](#recompile-existing-commands)
     - [Pipe Goscripts Commands Together With Unix Commands](#pipe-goscripts-commands-together-with-unix-commands)
 
 ## Features
@@ -65,6 +66,8 @@ Options:
 	    A name for your command. Defaults to gocmd.
   --list|-l
 	    Print the list of previously-compiled commands.
+  --recompile
+	    Recompile existing source files in the project src directory.
   --dir|-d
 	    Print the directory path to the project.
   --path|-p
@@ -190,15 +193,15 @@ func main() {
 
 ```
 
-You can specify the path to the file using the --file option. If you supply --name and --save options, the source file will be saved in the project for future edits.  
+You can specify the path to the file using the --file option. If you supply the --name option, the source file will be saved in the project for future edits.  
 
 ```
-> $ goscript --file '/tmp/gofind.go' --name 'findItNow' --save                        
+> $ goscript --file '/tmp/gofind.go' --name 'findItNow'                        
 > $ findItNow '/home/user/.config' 'interface'                               
 /home/user/.config/vlc/vlc-qt-interface.conf
 ```
 
-NOTE: If you pass the --save option, a copy of the source file is saved in the project. The original file is not deleted or moved. Cleanup is at your discretion.
+NOTE: If you pass the --name option, a copy of the source file is saved under that name in the project. The original file is not deleted or moved. Cleanup is at your discretion.
 
 ### Shebang
 
@@ -220,6 +223,8 @@ func main() {
 }
 ```
 
+The source file does not need to have the .go file extension. 
+
 Modify permissions to make it executable and run it directly like a shell script:
 
 ```
@@ -236,11 +241,10 @@ Can't remember that command you wrote last week? The --list option will show you
 
 ```
 > $ goscript --list 
-Commands:
-	gocmd
-	gofind
-	greet
-	shebang
+gocmd
+gofind
+greet
+shebang
 ```
 
 ### Get Path to Project (support project maintenance)
@@ -270,6 +274,9 @@ With the --save option, you can save a copy of the source code for your named co
 Hello Shebang!
 
 ```
+### Recompile Existing Commands
+
+For convenience, if you modify the sources in the project, or you clone your goscripts repo to another machine with a different architecture, you can invoke `goscript --recompile` to recompile all existing commands. 
 
 ### Pipe Goscripts Commands Together With Unix Commands
 

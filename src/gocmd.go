@@ -1,12 +1,9 @@
 package main
 
-import ( 
-    "fmt"
-    "path"
-    "os"
+import (
+	"fmt"
 )
 
 func main() {
-    fmt.Printf("ToPath: %s\n", path.Join(os.Args[1:]...))
+	fmt.Println("Hello World!")
 }
-

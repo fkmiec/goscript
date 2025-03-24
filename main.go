@@ -47,8 +47,8 @@ var buf *bytes.Buffer
 func assembleSourceFile(dir, code, imports string) *bytes.Buffer {
 	//Help the user with imports when writing a one-liner goscript with the --code option.
 	//
-	//Lookup any references to packages listed in the util/imports.go file and if found in the
-	//code, add to the imports if not already there explicitly. Enable use of shorter aliases
+	//Lookup any references to packages listed in the util/imports.go file and
+	// add to the imports if not already there explicitly. Enable use of shorter aliases.
 	var formattedImports []string
 	if len(imports) > 0 {
 		theImports := strings.Split(imports, ",")
@@ -153,7 +153,7 @@ func getProjectPath() string {
 
 func getCommandList(dir string) []string {
 	cmds := []string{}
-	list, err := os.ReadDir(dir)
+	list, err := os.ReadDir(dir + "/bin")
 	check(err)
 	for _, entry := range list {
 		if !entry.IsDir() {
@@ -162,6 +162,26 @@ func getCommandList(dir string) []string {
 	}
 	sort.Strings(cmds)
 	return cmds
+}
+
+func recompileCommands(dir string) {
+	commands := getCommandList(dir)
+	var srcFilename, binFilename string
+	for _, name := range commands {
+		srcFilename = dir + "/src/" + name + ".go"
+		binFilename = dir + "/bin/" + name
+		compileBinary(dir, srcFilename, binFilename)
+	}
+}
+
+func compileBinary(dir, srcFilename, binFilename string) {
+	cmd := exec.Command("go", "build", "-o", binFilename, srcFilename)
+	cmd.Dir = dir
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("%v: %s\n", err, out)
+	}
 }
 
 func checkFileExists(filePath string) bool {
@@ -183,6 +203,7 @@ func main() {
 	var code string
 	var inputFile string
 	var listCommands bool
+	var recompile bool
 	var path string
 	var printDir bool
 	var printTemplate bool
@@ -212,6 +233,8 @@ func main() {
 	flag.BoolVar(&listCommands, "list", false, "Print the list of previously-compiled commands.")
 	flag.BoolVar(&listCommands, "l", false, "Print the list of previously-compiled commands.")
 
+	flag.BoolVar(&recompile, "recompile", false, "Recompile all existing source files in the project src directory.")
+
 	flag.BoolVar(&execCode, "exec", false, "Execute the resulting binary.")
 	flag.BoolVar(&execCode, "x", false, "Execute the resulting binary.")
 
@@ -225,6 +248,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "  --file|-f string\n\tA go src file, complete with main function and imports. Alternative to --code and --imports options.")
 		fmt.Fprintln(os.Stderr, "  --name|-n string\n\tA name for your command. Defaults to gocmd.")
 		fmt.Fprintln(os.Stderr, "  --list|-l\n\tPrint the list of previously-compiled commands.")
+		fmt.Fprintln(os.Stderr, "  --recompile\n\tRecompile existing source files in the project src directory.")
 		fmt.Fprintln(os.Stderr, "  --dir|-d\n\tPrint the directory path to the project.")
 		fmt.Fprintln(os.Stderr, "  --path|-p\n\tPrint the path to the source file specified, if exists in the project. Blank if not found.")
 		fmt.Fprintln(os.Stderr, "  --bang|-b\n\tPrint the expected shebang line.")
@@ -302,12 +326,16 @@ func main() {
 
 	//--list: List existing commands
 	if listCommands {
-		cmds := getCommandList(dir + "/bin")
-		fmt.Println("Commands:")
+		cmds := getCommandList(dir)
 		for _, cmd := range cmds {
-			fmt.Printf("\t%s\n", cmd)
+			fmt.Printf("%s\n", cmd)
 		}
 		return //Exit the program after printing the list of commands
+	}
+
+	if recompile {
+		recompileCommands(dir)
+		return //Exit the program after recompiling existing commands
 	}
 
 	//--template: Print an empty template to give a starting point when creating an external source code file
@@ -340,13 +368,7 @@ func main() {
 	binFilename := dir + "/bin/" + name
 
 	writeSourceFile(srcFilename, buf)
-	cmd := exec.Command("go", "build", "-o", binFilename, srcFilename)
-	cmd.Dir = dir
-
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		fmt.Printf("%v: %s\n", err, out)
-	}
+	compileBinary(dir, srcFilename, binFilename)
 
 	// --exec: Execute the resulting binary
 	if execCode {
