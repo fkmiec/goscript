@@ -201,6 +201,75 @@ func compileBinary(dir, srcFilename, binFilename string) {
 	}
 }
 
+func createNewProject(dir string) {
+	if dir == "help" {
+		fmt.Printf("To use the --setup option to create a goscript project:\n")
+		fmt.Printf("Run 'goscript --setup <project name>'\n")
+		fmt.Printf("Goscript will:\n")
+		fmt.Printf("  a. Create the project directory\n")
+		fmt.Printf("  b. Run go mod init <project>\n")
+		fmt.Printf("  c. Run 'go get github.com/bitfield/script'\n")
+		fmt.Printf("  d. Create 'src' and 'bin' subdirectories in the project\n")
+		fmt.Printf("  e. Add the required Go template file 'script.tmpl'\n")
+		fmt.Printf("  f. Print out instructions to set GOSCRIPT_PROJECT_DIR and add GOSCRIPT_PROJECT_DIR/bin to the PATH\n")
+		return
+	}
+	projectDir := dir
+	isAbsolute := filepath.IsAbs(dir)
+	if !isAbsolute {
+		pwd, err := os.Getwd()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		projectDir = pwd + "/" + dir
+	}
+
+	fmt.Printf("Absolute path: %s\n", projectDir)
+
+	//Create project directory if not exist
+	if !checkFileExists(projectDir) {
+		os.Mkdir(projectDir, 0766)
+	}
+
+	//Run go mod init <basename>
+	projectName := filepath.Base(projectDir)
+	cmd := exec.Command("go", "mod", "init", projectName)
+	cmd.Dir = projectDir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("%v: %s\n", err, out)
+	}
+
+	//Run go get github.com/bitfield/script
+	cmd = exec.Command("go", "get", "github.com/bitfield/script")
+	cmd.Dir = projectDir
+	out, err = cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("%v: %s\n", err, out)
+	}
+
+	//Create 'src' and 'bin' subdirectories
+	srcDir := projectDir + "/src"
+	os.Mkdir(srcDir, 0766)
+	binDir := projectDir + "/bin"
+	os.Mkdir(binDir, 0766)
+
+	//Write script.tmpl file
+	// Open the file for writing, creates it if it doesn't exist, or truncates if it exists.
+	filename := projectDir + "/script.tmpl"
+	file, err := os.Create(filename)
+	check(err)
+	defer file.Close()
+	file.WriteString("package main\n\nimport ( {{range .Imports}}\n\t{{.}}{{ end }}\n)\n\nfunc main() {\n\t{{.Code}}\n}\n")
+
+	//Print instructions to set environment variable GOSCRIPT_PROJECT_DIR and add GOSCRIPT_PROJECT_DIR/bin to PATH
+	fmt.Printf("Created project %s at %s\n", projectName, projectDir)
+	fmt.Printf("To complete setup:\n")
+	fmt.Printf("\t1. Set environment variable GOSCRIPT_PROJECT_DIR=%s\n", projectDir)
+	fmt.Printf("\t2. Add %s to your PATH environment variable.\n", binDir)
+}
+
 func checkFileExists(filePath string) bool {
 	_, error := os.Stat(filePath)
 	//return !os.IsNotExist(err)
@@ -221,6 +290,7 @@ func main() {
 	var inputFile string
 	var listCommands bool
 	var recompile bool
+	var setupProject string
 	var path string
 	var printDir bool
 	var printTemplate bool
@@ -250,6 +320,7 @@ func main() {
 	flag.BoolVar(&listCommands, "list", false, "Print the list of previously-compiled commands.")
 	flag.BoolVar(&listCommands, "l", false, "Print the list of previously-compiled commands.")
 
+	flag.StringVar(&setupProject, "setup", "", "A name or absolute path. Creates a module project to be used by goscript. If no name is given, prints setup instructions.")
 	flag.BoolVar(&recompile, "recompile", false, "Recompile all existing source files in the project src directory.")
 
 	flag.BoolVar(&execCode, "exec", false, "Execute the resulting binary.")
@@ -258,7 +329,6 @@ func main() {
 	// Custom usage function
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "goscript (see https://github.com/fkmiec/goscript)\n\n")
-		fmt.Fprintf(os.Stderr, "The goscript command uses a dedicated Go module project and a Go template (script.tmpl from the repo) to compile Go scripts. The module project must have 'src' and 'bin' subfolders for your scripts and resulting binaries. The 'bin' folder must be on your PATH so that resulting binaries are immediately executable system-wide. The project directory is assumed to be wherever the binary is located. To use a different project location, set the environment variable GOSCRIPT_PROJECT_DIR.\n\n")
 		fmt.Fprintf(os.Stderr, "Usage: %s [options]\n", os.Args[0])
 		fmt.Fprintln(os.Stderr, "Options:")
 		fmt.Fprintln(os.Stderr, "  --code|-c string\n\tThe code of your command. Defaults to empty string.")
@@ -269,6 +339,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "  --recompile\n\tRecompile existing source files in the project src directory.")
 		fmt.Fprintln(os.Stderr, "  --dir|-d\n\tPrint the directory path to the project.")
 		fmt.Fprintln(os.Stderr, "  --path|-p\n\tPrint the path to the source file specified, if exists in the project. Blank if not found.")
+		fmt.Fprintln(os.Stderr, "  --setup\n\tA name, absolute path or 'help'. Creates a module project to be used by goscript. If 'help', prints setup instructions.")
 		fmt.Fprintln(os.Stderr, "  --bang|-b\n\tPrint the expected shebang line.")
 		fmt.Fprintln(os.Stderr, "  --template|-t\n\tPrint a template go source file to stdout. After edits, use --file to compile with goscript.")
 		fmt.Fprintln(os.Stderr, "  --exec|-x\n\tExecute the resulting binary.")
@@ -334,6 +405,12 @@ func main() {
 			fmt.Println(srcFile)
 		}
 		return //Exit the program after printing the path
+	}
+
+	//--setup: Create new goscript project. If no project name or path given, prints setup instructions.
+	if setupProject != "" {
+		createNewProject(setupProject)
+		return //Exit the program after setting up project or printing instructions.
 	}
 
 	//--bang: Print the shebang line to help the user who can't quite remember how it should go
