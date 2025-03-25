@@ -6,7 +6,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"goscripts/util"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,6 +13,8 @@ import (
 	"sort"
 	"strings"
 	"text/template"
+
+	"github.com/fkmiec/goscripts/util"
 )
 
 /*

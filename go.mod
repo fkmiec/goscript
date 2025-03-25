@@ -1,4 +1,4 @@
-module goscripts
+module github.com/fkmiec/goscripts
 
 go 1.22.1
 
