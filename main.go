@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"goscripts/util"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -144,10 +143,27 @@ func writeSourceFile(filename string, buf *bytes.Buffer) bool {
 }
 
 func getProjectPath() string {
-	executablePath, err := os.Executable()
-	check(err)
-
-	executableDir := filepath.Dir(executablePath)
+	executableDir := os.Getenv("GOSCRIPTS_PROJECT_DIR")
+	if executableDir != "" {
+		isExist := checkFileExists(executableDir)
+		if isExist {
+			srcDir := executableDir + "/src"
+			if !checkFileExists(srcDir) {
+				os.Mkdir(srcDir, 0766)
+			}
+			binDir := executableDir + "/bin"
+			if !checkFileExists(binDir) {
+				os.Mkdir(binDir, 0766)
+			}
+		} else {
+			fmt.Printf("Directory specified by GOSCRIPTS_PROJECT_DIR not found: %s\n", executableDir)
+			os.Exit(1)
+		}
+	} else {
+		executablePath, err := os.Executable()
+		check(err)
+		executableDir = filepath.Dir(executablePath)
+	}
 	return executableDir
 }
 
@@ -241,6 +257,7 @@ func main() {
 	// Custom usage function
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "goscripts (see https://github.com/fkmiec/goscripts)\n\n")
+		fmt.Fprintf(os.Stderr, "The goscript command uses a dedicated Go module project and a Go template (script.tmpl from the repo) to compile Go scripts. The module project must have 'src' and 'bin' subfolders for your scripts and resulting binaries. The 'bin' folder must be on your PATH so that resulting binaries are immediately executable system-wide. The project directory is assumed to be wherever the binary is located. To use a different project location, set the environment variable GOSCRIPTS_PROJECT_DIR.\n\n")
 		fmt.Fprintf(os.Stderr, "Usage: %s [options]\n", os.Args[0])
 		fmt.Fprintln(os.Stderr, "Options:")
 		fmt.Fprintln(os.Stderr, "  --code|-c string\n\tThe code of your command. Defaults to empty string.")
@@ -370,33 +387,18 @@ func main() {
 	writeSourceFile(srcFilename, buf)
 	compileBinary(dir, srcFilename, binFilename)
 
-	// --exec: Execute the resulting binary
+	//Experiment
 	if execCode {
-
 		//Pass in any args intended for the subprocess
 		cmd := exec.Command(binFilename, subprocessArgs...)
-		cmdStdin, err := cmd.StdinPipe()
-		check(err)
-
-		//Pass stdin to the subprocess
-		stdin := bufio.NewReader(os.Stdin)
-		go func() {
-			defer cmdStdin.Close()
-			for {
-				line, err := stdin.ReadString('\n')
-				if err != nil || len(strings.TrimSpace(line)) == 0 {
-					break
-				}
-				io.WriteString(cmdStdin, line)
-			}
-		}()
-
-		//Output the stdout from the subprocess (and any from this process if, for example, errors)
-		out, err := cmd.CombinedOutput()
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		err := cmd.Start()
 		if err != nil {
-			fmt.Printf("%v: %s\n", err, out)
-		} else {
-			fmt.Print(string(out))
+			fmt.Fprintln(cmd.Stderr, err)
+			os.Exit(1)
 		}
+		cmd.Wait()
 	}
 }

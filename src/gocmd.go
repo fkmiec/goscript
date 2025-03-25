@@ -1,9 +1,10 @@
 package main
 
-import (
-	"fmt"
+import ( 
+    "github.com/bitfield/script"
 )
 
 func main() {
-	fmt.Println("Hello World!")
+    script.Stdin().Column(11).Stdout()
 }
+
