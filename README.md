@@ -10,6 +10,8 @@ Enter **Goscript**.
   - [Features](#features)
   - [How It Works](#how-it-works)
   - [Install](#install)
+    - [Option 1 - Clone or Fork This Repo](#option-1---clone-or-fork-this-repo)
+    - [Option 2 - Go Install and Setup Module Project](#option-2---go-install-and-setup-module-project)
   - [Usage](#usage)
   - [Examples](#examples)
     - [Compile and Execute in Two Steps](#compile-and-execute-in-two-steps)
@@ -42,6 +44,8 @@ See examples, below, for more details.
 
 ## Install
 
+### Option 1 - Clone or Fork This Repo
+
 **Goscript** is ultimately about compiling Go code into binaries, so a Go module project is required to build your scripts. Further, the resulting binaries need to be on your path to be accessible. Follow these steps to get setup:
 
 1. Clone this repo and re-build the binary (if necessary ... binary was compiled on linux) with `go build -o goscript main.go`
@@ -50,7 +54,21 @@ See examples, below, for more details.
    1. The project directory created in Step 1 (ie. the location of the **goscript** binary). This will enable the **goscript** command to be executed from anywhere in your filesystem.
    2. The `bin` sub-directory within the project directory (ie. the location where all of the binaries for your scripts will be written). This will enable your scripted commands to be executed immediately from anywhere in your filesystem.
 
-NOTE: If you prefer to create another Go project for your scripts, rather than using the clone of this repo, you can do so. Just remember to (1) copy the **goscript** binary to the root of that new project folder, (2) create "src" and "bin" sub-folders expected by **goscript**, and (3) after running `go mod init (project name)` to initiate a module project, call `go get github.com/bitfield/script`, which is expected by **goscript**. Adjust the PATH instructions, above, for your new project's path. 
+### Option 2 - Go Install and Setup Module Project
+
+1. Call `go install github.com/fkmiec/goscript@latest` This will install the goscript binary, which should ensure it is on your PATH. 
+
+2. Create a new project directory. Navigate into that directory and call `go mod init <project name>`
+  
+3. Set environment variable GOSCRIPT_PROJECT_DIR to the directory of your new project. 
+   
+4. Copy the script.tmpl Go template from the repo into the project directory. This is a simple Go template used to wrap your code. 
+
+5. Create 'src' and 'bin' sub-directories in the project directory. This is where goscript will deposit source code and binaries for your scripts. 
+  
+6. Add the `bin` sub-directory to your PATH environment variable. This will enable your scripted commands to be executed immediately from anywhere in your filesystem.
+   
+7. Call  `go get github.com/bitfield/script`. Although not strictly required, many of the examples use the bitfield/script package. With any third-party package, you'll need to call 'go get' to install them in the project in order to successfully compile your script. 
 
 ## Usage
 ```
