@@ -1,12 +1,12 @@
-# goscripts
+# goscript
 
-**Goscripts** is a utility to make it easier to use Go as a scripting language. It was inspired by and implemented to leverage https://github.com/bitfield/script, a Go package aimed at bringing unix-like piped commands to Go.
+**Goscript** is a utility to make it easier to use Go as a scripting language. It was inspired by and implemented to leverage https://github.com/bitfield/script, a Go package aimed at bringing unix-like piped commands to Go.
 
 The Go compiler is fast enough that using Go for scripting tasks can be a good choice. There are challenges, however. Modern Go requires modules and does not support "go get -u" and the concept of a global GOPATH. Other projects have attempted to do something similar, but either fail to account for some of these challenges or create and delete temporary projects, folders and files for every execution and don't provide an efficient or effective way to re-use your scripts. 
 
-Enter **Goscripts**.  
+Enter **Goscript**.  
 
-- [goscripts](#goscripts)
+- [goscript](#goscript)
   - [Features](#features)
   - [How It Works](#how-it-works)
   - [Install](#install)
@@ -22,7 +22,7 @@ Enter **Goscripts**.
     - [Get Path to Project (support project maintenance)](#get-path-to-project-support-project-maintenance)
     - [Get Path to Source File (support editing)](#get-path-to-source-file-support-editing)
     - [Recompile Existing Commands](#recompile-existing-commands)
-    - [Pipe Goscripts Commands Together With Unix Commands](#pipe-goscripts-commands-together-with-unix-commands)
+    - [Pipe Goscript Commands Together With Unix Commands](#pipe-goscript-commands-together-with-unix-commands)
 
 ## Features
 
@@ -42,7 +42,7 @@ See examples, below, for more details.
 
 ## Install
 
-**Goscripts** is ultimately about compiling Go code into binaries, so a Go module project is required to build your scripts. Further, the resulting binaries need to be on your path to be accessible. Follow these steps to get setup:
+**Goscript** is ultimately about compiling Go code into binaries, so a Go module project is required to build your scripts. Further, the resulting binaries need to be on your path to be accessible. Follow these steps to get setup:
 
 1. Clone this repo and re-build the binary (if necessary ... binary was compiled on linux) with `go build -o goscript main.go`
 
@@ -253,18 +253,18 @@ Need to clean up some old commands from the bin and src folders? Get the path to
 
 ```
 > $ goscript --dir 
-/home/user/go/src/github.com/fkmiec/goscripts
+/home/user/go/src/github.com/fkmiec/goscript
 ```
 
 ### Get Path to Source File (support editing)
 
-With the --save option, you can save a copy of the source code for your named command. You can then use the --path option to print the path to the specified source file so that you can open it in your favorite editor and make updates. When done, calling goscripts with the just the --name option (without --code or --file) will cause the updated source file to be recompiled. Of course, you can navigate to the project folder and compile manually, but using **goscript** helps to ensure consistency.
+With the --save option, you can save a copy of the source code for your named command. You can then use the --path option to print the path to the specified source file so that you can open it in your favorite editor and make updates. When done, calling goscript with the just the --name option (without --code or --file) will cause the updated source file to be recompiled. Of course, you can navigate to the project folder and compile manually, but using **goscript** helps to ensure consistency.
 
 ```
 > $ goscript --name 'shebang' --save --file ./tmp.go 
 
 > $ goscript --path 'shebang' 
-/home/user/go/src/github.com/fkmiec/goscripts/src/shebang.go
+/home/user/go/src/github.com/fkmiec/goscript/src/shebang.go
 
 (file editing omitted from example)
 
@@ -276,9 +276,9 @@ Hello Shebang!
 ```
 ### Recompile Existing Commands
 
-For convenience, if you modify the sources in the project, or you clone your goscripts repo to another machine with a different architecture, you can invoke `goscript --recompile` to recompile all existing commands. 
+For convenience, if you modify the sources in the project, or you clone your goscript repo to another machine with a different architecture, you can invoke `goscript --recompile` to recompile all existing commands. 
 
-### Pipe Goscripts Commands Together With Unix Commands
+### Pipe Goscript Commands Together With Unix Commands
 
 While this is primarily a function of the bitfield/scripts package, it's notable that you can combine your go scripts with existing Unix / Linux commands using pipes. 
 

@@ -14,7 +14,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/fkmiec/goscripts/util"
+	"github.com/fkmiec/goscript/util"
 )
 
 /*
@@ -32,7 +32,7 @@ Command-line driven program to compile bitfield/script and other go code into un
 - provide an option to output the path to the project folder
 - provide an option to execute or run the code after compilation
 - support use of shebang to immediately execute the command inline. Shebang invokes the command and passes the filename of the script as the
-	first argument. So, "#!/usr/bin/env -S goscripts -x -f" should effectively act the same as combining file and run flags on the command line. For the
+	first argument. So, "#!/usr/bin/env -S goscript -x -f" should effectively act the same as combining file and run flags on the command line. For the
 	file option, always look for and strip out the shebang line if present.
 */
 
@@ -144,7 +144,7 @@ func writeSourceFile(filename string, buf *bytes.Buffer) bool {
 }
 
 func getProjectPath() string {
-	executableDir := os.Getenv("GOSCRIPTS_PROJECT_DIR")
+	executableDir := os.Getenv("GOSCRIPT_PROJECT_DIR")
 	if executableDir != "" {
 		isExist := checkFileExists(executableDir)
 		if isExist {
@@ -157,7 +157,7 @@ func getProjectPath() string {
 				os.Mkdir(binDir, 0766)
 			}
 		} else {
-			fmt.Printf("Directory specified by GOSCRIPTS_PROJECT_DIR not found: %s\n", executableDir)
+			fmt.Printf("Directory specified by GOSCRIPT_PROJECT_DIR not found: %s\n", executableDir)
 			os.Exit(1)
 		}
 	} else {
@@ -257,8 +257,8 @@ func main() {
 
 	// Custom usage function
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "goscripts (see https://github.com/fkmiec/goscripts)\n\n")
-		fmt.Fprintf(os.Stderr, "The goscript command uses a dedicated Go module project and a Go template (script.tmpl from the repo) to compile Go scripts. The module project must have 'src' and 'bin' subfolders for your scripts and resulting binaries. The 'bin' folder must be on your PATH so that resulting binaries are immediately executable system-wide. The project directory is assumed to be wherever the binary is located. To use a different project location, set the environment variable GOSCRIPTS_PROJECT_DIR.\n\n")
+		fmt.Fprintf(os.Stderr, "goscript (see https://github.com/fkmiec/goscript)\n\n")
+		fmt.Fprintf(os.Stderr, "The goscript command uses a dedicated Go module project and a Go template (script.tmpl from the repo) to compile Go scripts. The module project must have 'src' and 'bin' subfolders for your scripts and resulting binaries. The 'bin' folder must be on your PATH so that resulting binaries are immediately executable system-wide. The project directory is assumed to be wherever the binary is located. To use a different project location, set the environment variable GOSCRIPT_PROJECT_DIR.\n\n")
 		fmt.Fprintf(os.Stderr, "Usage: %s [options]\n", os.Args[0])
 		fmt.Fprintln(os.Stderr, "Options:")
 		fmt.Fprintln(os.Stderr, "  --code|-c string\n\tThe code of your command. Defaults to empty string.")
