@@ -92,14 +92,14 @@ Options:
 	    Execute the resulting binary.
 
 Example (Compile as 'hello'. Execute hello.):
-  goscript --code 'script.Echo(" Hello World!\n").Stdout()' --name hello; hello
+  goscript --code 'script.Echo("Hello World!\n").Stdout()' --name hello; hello
 
 Example (Execute immediately.):
-  goscript --exec --code 'script.Echo(" Hello World!\n").Stdout()'
+  goscript --exec --code 'script.Echo("Hello World!\n").Stdout()'
 
 Example shebang in 'myscript.go' file:
   (1) Add '#!/usr/bin/env -S goscript' to the top of your go source file.
-  (2) Set execute permission and type "./myscript.go" as you would with a shell script.
+  (2) Set execute permission and type './myscript.go' as you would with a shell script.
 ```
 
 ## Examples
@@ -123,14 +123,6 @@ Adding the --exec option will cause the code to be executed immediately after co
 
 ```
 > $ goscript --exec --code 'script.FindFiles("/home/user/.config").Match("vlc").Stdout()'
-/home/user/.config/vlc/vlc-qt-interface.conf
-/home/user/.config/vlc/vlcrc
-```
-
-And alternative to passing the --exec flag would be to put both commands on the same line in the terminal, separated by a semi-colon. In the example below, which omits the --exec option, the unnamed script will use the default name of 'gocmd', which we add with a semi-colon. The code appears to execute in one step. 
-
-```
-> $ goscript --code 'script.FindFiles("/home/user/.config").Match("vlc").Stdout()';gocmd
 /home/user/.config/vlc/vlc-qt-interface.conf
 /home/user/.config/vlc/vlcrc
 ```
@@ -185,7 +177,7 @@ This feature has no impact on code supplied in files (either through --file or u
 
 ### Use --file to Pass a Source File
 
-Go scripts are ultimately just go code. At minimum, that requires a main function, package declaration and imports. For simple one-liners, **goscript** will help assemble a boilerplate go source file. For more complex scripts, **goscript** assumes you will provide a complete go source file. The file may include, for example, variables and other functions besides main. The --template option can be specified to have **goscript** provide a boilerplate source file to start from. 
+Go scripts are ultimately just go code. At minimum, that requires a main function, package declaration and imports. For simple one-liners, **goscript** will help assemble a boilerplate go source file. For more complex scripts, **goscript** assumes you will provide a complete go source file. The file may include, for example, variables, structs and other functions besides main. The --template option can be specified to have **goscript** provide a boilerplate source file to start from. 
 
 Once you have a source file, you can use the --file option to pass it to **goscript** and have it compiled and placed in the project and on the PATH so it is immediately executable. 
 
@@ -270,10 +262,10 @@ Need to clean up some old commands from the bin and src folders? Get the path to
 
 ### Get Path to Source File (support editing)
 
-With the --save option, you can save a copy of the source code for your named command. You can then use the --path option to print the path to the specified source file so that you can open it in your favorite editor and make updates. When done, calling goscript with the just the --name option (without --code or --file) will cause the updated source file to be recompiled. Of course, you can navigate to the project folder and compile manually, but using **goscript** helps to ensure consistency.
+With the --name option, a copy of the source code is saved in the project src directory under that name. You can then use the --path option to print the path to the specified source file so that you can open it in your favorite editor and make updates. When done, calling goscript with the just the --name option (without --code or --file) will cause the updated source file to be recompiled. Of course, you can navigate to the project folder and compile manually, but using **goscript** helps to ensure consistency.
 
 ```
-> $ goscript --name 'shebang' --save --file ./tmp.go 
+> $ goscript --name 'shebang' --file ./tmp.go 
 
 > $ goscript --path 'shebang' 
 /home/user/go/src/github.com/fkmiec/goscript/src/shebang.go
@@ -295,7 +287,7 @@ For convenience, if you modify the sources in the project, or you clone your gos
 While this is primarily a function of the bitfield/scripts package, it's notable that you can combine your go scripts with existing Unix / Linux commands using pipes. 
 
 ```
-> $ goscript --name 'uppercase' --save --imports 'strings' --code 'script.Stdin().FilterLine(strings.ToUpper).Stdout()'
+> $ goscript --name 'uppercase' --imports 'strings' --code 'script.Stdin().FilterLine(strings.ToUpper).Stdout()'
                                                                                                                               
 > $ echo 'hello world!' | uppercase 
 HELLO WORLD!
