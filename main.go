@@ -20,25 +20,6 @@ import (
 	"github.com/fkmiec/goscript/util"
 )
 
-/*
-Command-line driven program to compile bitfield/script and other go code into unix-like command pipelines.
-
-- compile one-line pipeline of script commands into an executable (Include this src folder on the PATH so the command will be immediately usable)
-- default the name of the command to "gocmd"
-- optionally specify a unique name for the command
-- optionally specify additional imports (e.g. import os if you need to pass arguments to the resulting command)
-- optionally specify a file for the code. If so, assume the file is the entire code, including main function and imports.
-- provide an option to spit out a skeletal template for a file
-- provide an option to save the source in the project under the command name (ie. for name=FindFiles, src file will be <project>/src/FindFiles.go)
-- provide an option to list previously compiled commands
-- provide an option to output the full path to the source file previously saved to the project (so can edit in your favorite code editor)
-- provide an option to output the path to the project folder
-- provide an option to execute or run the code after compilation
-- support use of shebang to immediately execute the command inline. Shebang invokes the command and passes the filename of the script as the
-	first argument. So, "#!/usr/bin/env -S goscript -x -f" should effectively act the same as combining file and run flags on the command line. For the
-	file option, always look for and strip out the shebang line if present.
-*/
-
 type Repl struct {
 	Imports []string
 	Code    string
@@ -131,6 +112,9 @@ func goGet(pkgName string) {
 	//Add pkgName to imports.json file
 	pkgAlias := filepath.Base(pkgName)
 	userImports := readUserImports()
+	if userImports == nil {
+		userImports = make(map[string]string)
+	}
 	userImports[pkgAlias] = pkgName
 	writeUserImports(userImports)
 }
@@ -412,7 +396,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%s (see https://github.com/fkmiec/goscript)\n\n", version)
 		fmt.Fprintf(os.Stderr, "Usage: %s [options]\n", os.Args[0])
 		fmt.Fprintln(os.Stderr, "Options:")
-		fmt.Fprintln(os.Stderr, "  --code|-c string\n\tThe code of your command. Defaults to empty string.")
+		fmt.Fprintln(os.Stderr, "  --code|-c string\n\tThe code of your command or the name of a file containing the body of the main function.")
 		fmt.Fprintln(os.Stderr, "  --file|-f string\n\tA go src file, complete with main function and imports. Alternative to --code.")
 		fmt.Fprintln(os.Stderr, "  --template|-t\n\tPrint a template go source file to stdout, or to the project src directory if --name provided.")
 		fmt.Fprintln(os.Stderr, "  --export|-e string\n\tExports the named script to stdout with shebang added and removes source and binary from project.")
@@ -563,6 +547,11 @@ func main() {
 		buf = readSourceFile(inputFile)
 		//--code: Handle typical one-liner code specified on command line
 	} else if code != "" {
+		//If user wants to put main function body in a file and read it in, rather than cumbersome command line, we can do that.
+		if checkFileExists(code) {
+			buf = readSourceFile(code)
+			code = buf.String()
+		}
 		buf = assembleSourceFile(code)
 		//--name: Handle compiling a pre-existing source file located in the project/src folder
 	} else if name != "" {
