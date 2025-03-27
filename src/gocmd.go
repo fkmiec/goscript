@@ -2,9 +2,10 @@ package main
 
 import ( 
     "github.com/bitfield/script"
+    "os"
 )
 
 func main() {
-    script.Stdin().Column(11).Stdout()
+    script.Echo("Hello Big " + os.Args[1] + "\n").Stdout()
 }
 

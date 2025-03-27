@@ -3,13 +3,16 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"text/template"
@@ -41,20 +44,23 @@ type Repl struct {
 	Code    string
 }
 
+var version string = "goscript v1.2.0"
+var projectDir string
 var pkgMatcher *regexp.Regexp
 var buf *bytes.Buffer
 
-func assembleSourceFile(dir, code, imports string) *bytes.Buffer {
-	//Help the user with imports when writing a one-liner goscript with the --code option.
-	//
+func assembleSourceFile(code string) *bytes.Buffer {
+	//Automate imports when writing a one-liner goscript with the --code option.
+
 	//Lookup any references to packages listed in the util/imports.go file and
 	// add to the imports if not already there explicitly. Enable use of shorter aliases.
 	var formattedImports []string
-	if len(imports) > 0 {
-		theImports := strings.Split(imports, ",")
-		for _, imp := range theImports {
-			imp = fmt.Sprintf("\"%s\"", imp)
-			formattedImports = append(formattedImports, imp)
+
+	//Read in any additional import mappings from imports.json file in project directory
+	userImports := readUserImports()
+	if userImports != nil {
+		for key, value := range userImports {
+			util.ImportsMap[key] = value
 		}
 	}
 
@@ -73,7 +79,10 @@ func assembleSourceFile(dir, code, imports string) *bytes.Buffer {
 				} else {
 					v = fmt.Sprintf("\"%s\"", v) //e.g. "regexp"
 				}
-				formattedImports = append(formattedImports, v)
+				//Ensure we don't duplicate any imports
+				if !slices.Contains(formattedImports, v) {
+					formattedImports = append(formattedImports, v)
+				}
 			}
 		}
 	}
@@ -83,9 +92,47 @@ func assembleSourceFile(dir, code, imports string) *bytes.Buffer {
 		Code:    code,
 	}
 
-	buf = processTemplate(dir, repl)
+	buf = processTemplate(repl)
 
 	return buf
+}
+
+func readUserImports() map[string]string {
+	var userImports map[string]string
+	filename := projectDir + "/imports.json"
+	if checkFileExists(filename) {
+		file, err := os.Open(filename)
+		check(err)
+		defer file.Close()
+
+		byteValue, _ := io.ReadAll(file)
+		json.Unmarshal([]byte(byteValue), &userImports)
+	}
+	return userImports
+}
+
+func writeUserImports(userImports map[string]string) {
+	filename := projectDir + "/imports.json"
+	jsonData, err := json.MarshalIndent(userImports, "", "    ") // Use MarshalIndent for pretty printing
+	check(err)
+	err = os.WriteFile(filename, jsonData, 0644)
+	check(err)
+}
+
+func goGet(pkgName string) {
+	cmd := exec.Command("go", "get", pkgName)
+	cmd.Dir = projectDir
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("%v: %s\n", err, out)
+	}
+
+	//Add pkgName to imports.json file
+	pkgAlias := filepath.Base(pkgName)
+	userImports := readUserImports()
+	userImports[pkgAlias] = pkgName
+	writeUserImports(userImports)
 }
 
 func readSourceFile(filename string) *bytes.Buffer {
@@ -115,8 +162,8 @@ func readSourceFile(filename string) *bytes.Buffer {
 	return buf
 }
 
-func processTemplate(dir string, repl Repl) *bytes.Buffer {
-	var tmplFile = dir + "/script.tmpl"
+func processTemplate(repl Repl) *bytes.Buffer {
+	var tmplFile = projectDir + "/script.tmpl"
 	tmpl, err := template.New("script.tmpl").ParseFiles(tmplFile)
 	check(err)
 
@@ -168,9 +215,23 @@ func getProjectPath() string {
 	return executableDir
 }
 
-func getCommandList(dir string) []string {
+func getSourceList() []string {
 	cmds := []string{}
-	list, err := os.ReadDir(dir + "/bin")
+	list, err := os.ReadDir(projectDir + "/src")
+	check(err)
+	for _, entry := range list {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".go") {
+			cmds = append(cmds, entry.Name())
+		}
+	}
+	sort.Strings(cmds)
+	return cmds
+}
+
+/* REMOVE. Appears not needed. Replaced by getSourceList().
+func getCommandList() []string {
+	cmds := []string{}
+	list, err := os.ReadDir(projectDir + "/bin")
 	check(err)
 	for _, entry := range list {
 		if !entry.IsDir() {
@@ -180,20 +241,32 @@ func getCommandList(dir string) []string {
 	sort.Strings(cmds)
 	return cmds
 }
+*/
 
-func recompileCommands(dir string) {
-	commands := getCommandList(dir)
+// Soft delete. Renames source file without .go extension so it will be ignored. Removes binary.
+func deleteCommand(cmd string) {
+	sansGoExt := projectDir + "/src/" + cmd
+	srcFilename := sansGoExt + ".go"
+	binFilename := projectDir + "/bin/" + cmd
+	err := os.Rename(srcFilename, sansGoExt)
+	check(err)
+	err = os.Remove(binFilename)
+	check(err)
+}
+
+func recompileCommands() {
+	commands := getSourceList()
 	var srcFilename, binFilename string
 	for _, name := range commands {
-		srcFilename = dir + "/src/" + name + ".go"
-		binFilename = dir + "/bin/" + name
-		compileBinary(dir, srcFilename, binFilename)
+		srcFilename = projectDir + "/src/" + name
+		binFilename = projectDir + "/bin/" + name[:len(name)-3] //removes .go from binary filename
+		compileBinary(srcFilename, binFilename)
 	}
 }
 
-func compileBinary(dir, srcFilename, binFilename string) {
+func compileBinary(srcFilename, binFilename string) {
 	cmd := exec.Command("go", "build", "-o", binFilename, srcFilename)
-	cmd.Dir = dir
+	cmd.Dir = projectDir
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -204,7 +277,7 @@ func compileBinary(dir, srcFilename, binFilename string) {
 func createNewProject(dir string) {
 	if dir == "help" {
 		fmt.Printf("To use the --setup option to create a goscript project:\n")
-		fmt.Printf("Run 'goscript --setup <project name>'\n")
+		fmt.Printf("Run '%s --setup <project name>'\n", os.Args[0])
 		fmt.Printf("Goscript will:\n")
 		fmt.Printf("  a. Create the project directory\n")
 		fmt.Printf("  b. Run go mod init <project>\n")
@@ -214,7 +287,7 @@ func createNewProject(dir string) {
 		fmt.Printf("  f. Print out instructions to set GOSCRIPT_PROJECT_DIR and add GOSCRIPT_PROJECT_DIR/bin to the PATH\n")
 		return
 	}
-	projectDir := dir
+	projectDir = dir
 	isAbsolute := filepath.IsAbs(dir)
 	if !isAbsolute {
 		pwd, err := os.Getwd()
@@ -285,27 +358,31 @@ func check(e error) {
 func main() {
 
 	var name string
-	var imports string
+	var toExport string
+	var toDelete string
 	var code string
 	var inputFile string
 	var listCommands bool
 	var recompile bool
 	var setupProject string
+	var toGoGet string
 	var path string
 	var printDir bool
 	var printTemplate bool
 	var execCode bool
 	var printShebang bool
+	var printVersion bool
 
-	flag.StringVar(&name, "name", "gocmd", "A name for your command. Defaults to gocmd.")
-	flag.StringVar(&name, "n", "gocmd", "A name for your command. Defaults to gocmd.")
-	flag.StringVar(&imports, "imports", "", "A comma-separated list of go packages to import. Not used with --file option.")
-	flag.StringVar(&imports, "i", "", "A comma-separated list of go packages to import. Not used with --file option.")
+	flag.StringVar(&name, "name", "", "A name for your command.")
+	flag.StringVar(&name, "n", "", "A name for your command.")
+	flag.StringVar(&toExport, "export", "", "Exports the named script to stdout with shebang added and removes source and binary from project.")
+	flag.StringVar(&toExport, "e", "", "Exports the named script to stdout with shebang added and removes source and binary from project.")
 	flag.StringVar(&code, "code", "", "The code of your command. Defaults to empty string.")
 	flag.StringVar(&code, "c", "", "The code of your command. Defaults to empty string.")
 
 	flag.StringVar(&inputFile, "file", "", "A go src file, complete with main function and imports. Alternative to --code and --imports options.")
 	flag.StringVar(&inputFile, "f", "", "A go src file, complete with main function and imports. Alternative to --code and --imports options.")
+	flag.StringVar(&toDelete, "delete", "", "Delete the specified compiled command. Removes .go extension from source file so it remains recoverable.")
 
 	flag.StringVar(&path, "path", "", "Print the path to the source file specified, if exists in the project. Blank if not found.")
 	flag.StringVar(&path, "p", "", "Print the path to the source file specified, if exists in the project. Blank if not found.")
@@ -317,36 +394,43 @@ func main() {
 	flag.BoolVar(&printShebang, "bang", false, "Print the expected shebang line.")
 	flag.BoolVar(&printShebang, "b", false, "Print the expected shebang line.")
 
-	flag.BoolVar(&listCommands, "list", false, "Print the list of previously-compiled commands.")
-	flag.BoolVar(&listCommands, "l", false, "Print the list of previously-compiled commands.")
+	flag.BoolVar(&listCommands, "list", false, "Print the list of existing commands.")
+	flag.BoolVar(&listCommands, "l", false, "Print the list of existing commands.")
 
 	flag.StringVar(&setupProject, "setup", "", "A name or absolute path. Creates a module project to be used by goscript. If no name is given, prints setup instructions.")
 	flag.BoolVar(&recompile, "recompile", false, "Recompile all existing source files in the project src directory.")
+	flag.StringVar(&toGoGet, "goget", "", "Go get an external package (not part of stdlib) to pull into the project.")
 
 	flag.BoolVar(&execCode, "exec", false, "Execute the resulting binary.")
 	flag.BoolVar(&execCode, "x", false, "Execute the resulting binary.")
 
+	flag.BoolVar(&printVersion, "version", false, "Print the goscript version.")
+	flag.BoolVar(&printVersion, "v", false, "Print the goscript version.")
+
 	// Custom usage function
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "goscript (see https://github.com/fkmiec/goscript)\n\n")
+		fmt.Fprintf(os.Stderr, "%s (see https://github.com/fkmiec/goscript)\n\n", version)
 		fmt.Fprintf(os.Stderr, "Usage: %s [options]\n", os.Args[0])
 		fmt.Fprintln(os.Stderr, "Options:")
 		fmt.Fprintln(os.Stderr, "  --code|-c string\n\tThe code of your command. Defaults to empty string.")
-		fmt.Fprintln(os.Stderr, "  --imports|-i string\n\tA comma-separated list of go packages to import. Not used with --file option.")
-		fmt.Fprintln(os.Stderr, "  --file|-f string\n\tA go src file, complete with main function and imports. Alternative to --code and --imports options.")
-		fmt.Fprintln(os.Stderr, "  --name|-n string\n\tA name for your command. Defaults to gocmd.")
-		fmt.Fprintln(os.Stderr, "  --list|-l\n\tPrint the list of previously-compiled commands.")
+		fmt.Fprintln(os.Stderr, "  --file|-f string\n\tA go src file, complete with main function and imports. Alternative to --code.")
+		fmt.Fprintln(os.Stderr, "  --template|-t\n\tPrint a template go source file to stdout, or to the project src directory if --name provided.")
+		fmt.Fprintln(os.Stderr, "  --export|-e string\n\tExports the named script to stdout with shebang added and removes source and binary from project.")
+		fmt.Fprintln(os.Stderr, "  --name|-n string\n\tA name for your command. The code will be saved to the project src directory with that name.")
+		fmt.Fprintln(os.Stderr, "  --list|-l\n\tPrint the list of existing commands.")
+		fmt.Fprintln(os.Stderr, "  --goget|-g string\n\tGo get an external package (not part of stdlib) to pull into the project.")
 		fmt.Fprintln(os.Stderr, "  --recompile\n\tRecompile existing source files in the project src directory.")
+		fmt.Fprintln(os.Stderr, "  --delete\n\tDelete the specified compiled command. Removes .go extension from source file so it remains recoverable.")
 		fmt.Fprintln(os.Stderr, "  --dir|-d\n\tPrint the directory path to the project.")
 		fmt.Fprintln(os.Stderr, "  --path|-p\n\tPrint the path to the source file specified, if exists in the project. Blank if not found.")
 		fmt.Fprintln(os.Stderr, "  --setup\n\tA name, absolute path or 'help'. Creates a module project to be used by goscript. If 'help', prints setup instructions.")
 		fmt.Fprintln(os.Stderr, "  --bang|-b\n\tPrint the expected shebang line.")
-		fmt.Fprintln(os.Stderr, "  --template|-t\n\tPrint a template go source file to stdout. After edits, use --file to compile with goscript.")
 		fmt.Fprintln(os.Stderr, "  --exec|-x\n\tExecute the resulting binary.")
+		fmt.Fprintln(os.Stderr, "  --version|-v\n\tPrint the goscript version.")
 		fmt.Fprintln(os.Stderr, "\nExample (Compile as 'hello'. Execute hello.):")
-		fmt.Fprintf(os.Stderr, "  %s --code 'script.Echo(\" Hello World!\\n\").Stdout()' --name hello; hello\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s --code 'script.Echo(\"Hello World!\\n\").Stdout()' --name hello; hello\n", os.Args[0])
 		fmt.Fprintln(os.Stderr, "\nExample (Execute immediately.):")
-		fmt.Fprintf(os.Stderr, "  %s --exec --code 'script.Echo(\" Hello World!\\n\").Stdout()'\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s --exec --code 'script.Echo(\"Hello World!\\n\").Stdout()'\n", os.Args[0])
 		fmt.Fprintln(os.Stderr, "\nExample shebang in 'myscript.go' file:")
 		fmt.Fprintf(os.Stderr, "  (1) Add '#!/usr/bin/env -S %s' to the top of your go source file.\n", os.Args[0])
 		fmt.Fprintln(os.Stderr, "  (2) Set execute permission and type \"./myscript.go\" as you would with a shell script.\n")
@@ -381,24 +465,24 @@ func main() {
 		subprocessArgs = flag.Args()
 	}
 
-	//Get the path of the executable, which SHOULD BE the path to the project folder.
-	//
-	//NOTE: While it might typically make sense to install the binary in some other location,
-	//  this binary exists to build code and so requires a project (in order
-	//  to support modules, etc.). This could also be done locating the binary elsewhere and
-	//  using an environment variable to specify the project directory used for compiling but
-	//  this seems simpler.
-	dir := getProjectPath()
+	//Get the project path (either the location of the executable or as specified by GOSCRIPT_PROJECT_DIR).
+	projectDir = getProjectPath()
+
+	//--version: Print the version of goscript
+	if printVersion {
+		fmt.Println(version)
+		return //Exit the program after printing the version
+	}
 
 	//--dir: Print the location of the project folder
 	if printDir {
-		fmt.Println(dir)
+		fmt.Println(projectDir)
 		return //Exit the program after printing the path
 	}
 
 	//--path: Print the location of the source file, if it exists, otherwise blank
 	if path != "" {
-		srcFile := dir + "/src/" + path + ".go"
+		srcFile := projectDir + "/src/" + path + ".go"
 		isFileExists := checkFileExists(srcFile)
 		if isFileExists {
 			//print the source file path
@@ -421,25 +505,57 @@ func main() {
 
 	//--list: List existing commands
 	if listCommands {
-		cmds := getCommandList(dir)
+		cmds := getSourceList() //Assumes binary list is same. Not true if template files that were never compiled, but should be rare.
 		for _, cmd := range cmds {
-			fmt.Printf("%s\n", cmd)
+			fmt.Printf("%s\n", cmd[:len(cmd)-3]) //Remove the .go extension.
 		}
 		return //Exit the program after printing the list of commands
 	}
 
+	//--goget: Execute a go get <pkg> to bring external package into project
+	if toGoGet != "" {
+		goGet(toGoGet)
+		return //Exit after go get package
+	}
+
+	//--recompile: Recompile existing sources
 	if recompile {
-		recompileCommands(dir)
+		recompileCommands()
 		return //Exit the program after recompiling existing commands
 	}
 
-	//--template: Print an empty template to give a starting point when creating an external source code file
+	//--template: Print an empty template to give a starting point when creating a new source code file
 	if printTemplate {
-		buf = assembleSourceFile(dir, code, imports)
-		fmt.Println("#!/usr/bin/env -S " + os.Args[0]) //Add the shebang line when printing a template
+		buf = assembleSourceFile(code)
+		if name != "" {
+			srcFilename := projectDir + "/src/" + name + ".go"
+			writeSourceFile(srcFilename, buf)
+			fmt.Printf("Source file written to: %s\n", srcFilename)
+			return
+		} else {
+			fmt.Println("#!/usr/bin/env -S " + os.Args[0]) //Add the shebang line when printing a template
+			_, err := buf.WriteTo(os.Stdout)
+			check(err)
+			return //Exit the program after printing the template
+		}
+	}
+
+	//--export: Print the source code from the named command to stdout.
+	// Executes --delete option as well (see below)
+	if toExport != "" {
+		srcFilename := projectDir + "/src/" + toExport + ".go"
+		buf = readSourceFile(srcFilename)
+		fmt.Println("#!/usr/bin/env -S " + os.Args[0]) //Add the shebang line when exporting a source file (assumption is outside project it will be a shebang script)
 		_, err := buf.WriteTo(os.Stdout)
 		check(err)
-		return //Exit the program after printing the template
+		deleteCommand(toExport)
+		return //Exit the program after exporting
+	}
+
+	//--delete: Deletes the named binary. Renames the named source file without .go extension so it remains recoverable.
+	if toDelete != "" {
+		deleteCommand(toDelete)
+		return //Exit the program after deleting
 	}
 
 	//--file: Handle a regular go source file (potentially with a shebang (#!) at the top)
@@ -447,10 +563,10 @@ func main() {
 		buf = readSourceFile(inputFile)
 		//--code: Handle typical one-liner code specified on command line
 	} else if code != "" {
-		buf = assembleSourceFile(dir, code, imports)
+		buf = assembleSourceFile(code)
 		//--name: Handle compiling a pre-existing source file located in the project/src folder
-	} else if name != "gocmd" {
-		srcFilename := dir + "/src/" + name + ".go"
+	} else if name != "" {
+		srcFilename := projectDir + "/src/" + name + ".go"
 		buf = readSourceFile(srcFilename)
 		//(no options): Print usage and exit
 	} else {
@@ -459,11 +575,14 @@ func main() {
 	}
 
 	//Save source and compile binary
-	srcFilename := dir + "/src/" + name + ".go"
-	binFilename := dir + "/bin/" + name
+	if name == "" {
+		name = "gocmd"
+	}
+	srcFilename := projectDir + "/src/" + name + ".go"
+	binFilename := projectDir + "/bin/" + name
 
 	writeSourceFile(srcFilename, buf)
-	compileBinary(dir, srcFilename, binFilename)
+	compileBinary(srcFilename, binFilename)
 
 	//Experiment
 	if execCode {
