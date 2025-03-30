@@ -8,7 +8,6 @@ Enter **Goscript**.
 
 - [goscript](#goscript)
   - [Features](#features)
-  - [Philosophy](#philosophy)
   - [How It Works](#how-it-works)
   - [Install](#install)
     - [Option 1 - Clone or Fork This Repo](#option-1---clone-or-fork-this-repo)
@@ -36,23 +35,15 @@ Enter **Goscript**.
 
 ## Features
 
+**Goscript** aims to make scripting in Go **_feel_** like scripting in other languages.
+
 * Execute simple go code directly on the command line
 * Write go source files anywhere in your filesystem and execute them like a script with shebang
-* Compile go code into named binaries for repeated use. Build up a library of custom commands. 
-* Everything in one dedicated project, accessible system-wide through the **goscript** command. 
+* Compile go code into named binaries you can use anywhere like common system commands (e.g. cat, echo, ls, grep, find, etc.) 
+* Support to make writing short scripts easier, like handling boilerplate and automating imports 
+* Organizes everything in one dedicated project, accessible system-wide through the **goscript** command
 * Options to generate templates for go scripts, list existing commands and print paths to project and source code to facilitate editing and maintenance. 
-
-## Philosophy
-
-Scripting in Go should **_feel_** like scripting in other languages.
-
-* You should be empowered to write scripts where you are working (ie. outside of a Go project folder) 
-* You should be able to execute short scripts directly on the command line 
-* You should be able to use a shebang to turn a go source file into an executable script
-* It should be easy to keep track of your scripts
-* It should be easy to use your scripts anywhere like common system commands (e.g. cat, echo, ls, grep, find, etc.). 
-* There should be support to make writing short scripts easier, like handling boilerplate and automating imports. 
-* Finally, it should be flexible. If you want to write a shebang script for local use, great. If you want to write a throw-away one-liner with hard-coded arguments, no problem. If you want to write a reusable system command ... why not? It's your choice.    
+* Flexibility. If you want to write a shebang script for local use, great. If you want to write a throw-away one-liner with hard-coded arguments, no problem. If you want to write a reusable system command ... why not? It's your choice. 
 
 ## How It Works
 
