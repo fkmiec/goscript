@@ -2,7 +2,7 @@
 
 **Goscript** is a utility to make it easier to use Go as a scripting language. It was initially inspired by and implemented to leverage https://github.com/bitfield/script, a Go package aimed at bringing unix-like piped commands to Go.
 
-The Go compiler is fast enough that using Go for scripting tasks can be a good choice. There are challenges, however. The `go run` command works to build and execute go code that relies on the stdlib well enough, but adding any third-party packages involves complications with go modules and/or the GOPATH and can quickly become confusing. There is no support for running short bits of code directly on the command line nor using a shebang at the top of a file to execute like a script. Also, managing your GOPATH and dependencies can be complicated and there is no help with organizing your scripts so they are easily found, updated and applied wherever you need them.  
+The Go compiler is fast enough that using Go for scripting tasks can be a good choice. There are challenges, however. The introduction of go modules caused a lot of confusion about GOPATH and the way go behaves depending on whether GO111MODULES=on, off or auto. There is no support for running short bits of code directly on the command line nor using a shebang at the top of a file to execute like a script. And there is no help with organizing your scripts so they are easily found, updated and applied wherever you need them.  
 
 Enter **Goscript**.  
 
@@ -44,13 +44,21 @@ Enter **Goscript**.
 
 ## Philosophy
 
-Scripting in Go should **_feel_** like scripting in other languages. You should be empowered to write scripts anywhere in the filesystem and expect them to work. You should be able to execute short scripts directly on the command line. You should be able to use a shebang to turn a go source file into an executable script. And unlike most scripting languages, it should be easy to keep track of your scripts and, if you want to, to use them globally like other system commands (e.g. cat, echo, ls, grep, find, etc.). There should be support to make writing short bits easier, like handling boilerplate and automating imports. Finally, it should be flexible. If you want to write a shebang script for regular use in a specific location, great. If you want to write a short throw-away one-liner with hard-coded arguments, great. If you want to write a reusable global command, great. It's your choice.    
+Scripting in Go should **_feel_** like scripting in other languages.
+
+* You should be empowered to write scripts where you are working (ie. outside of a Go project folder) 
+* You should be able to execute short scripts directly on the command line 
+* You should be able to use a shebang to turn a go source file into an executable script
+* It should be easy to keep track of your scripts
+* It should be easy to use your scripts anywhere like common system commands (e.g. cat, echo, ls, grep, find, etc.). 
+* There should be support to make writing short scripts easier, like handling boilerplate and automating imports. 
+* Finally, it should be flexible. If you want to write a shebang script for local use, great. If you want to write a throw-away one-liner with hard-coded arguments, no problem. If you want to write a reusable system command ... why not? It's your choice.    
 
 ## How It Works
 
 The **goscript** executable will wrap any code specified on the command line with a main function and apply any required imports before compiling and optionally executing the code. If no name is given, the binary will be `[project folder]/bin/gocmd` and the source file will be `[project folder]/src/gocmd.go`. If the name is given, the binary and source files will reflect that name. By adding the `[project]/bin` folder to your PATH environment variable, the resulting binaries will be immediately available to execute like other system commands (such as ls, cat, echo, grep, etc.). 
 
-If the --file option is used, then **goscript** will assume the file is a complete go source file and build it **_as is_**, rather than attempting to add imports and wrap code in a main function. However, to facilitate writing the go source file, the --template option will provide a skeleton go source file as a starting point. That template can include imports and some basic code to start from if the --code option is also used. If the --name option is provided, the template will be saved to the project `src` folder for better IDE support when editing. The --edit option will open the file in the project src folder using your chosen editor. 
+If the --file option is used, then **goscript** will assume the file is a complete go source file and build it **_as is_**, rather than attempting to add imports and wrap code in a main function. However, to facilitate writing the go source file, the --template option will provide a skeleton go source file as a starting point. That template can include imports and some basic code to start from if the --code option is also used. If the --name option is provided, the template will be saved to the project `src` folder for better IDE support when editing. The --edit option will then enable you to open the file in the project src folder using your chosen editor. 
 
 See examples, below, for more details. 
 
