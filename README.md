@@ -367,6 +367,8 @@ With the --delete option, the binary for the command is deleted and the source f
 > $ goscript --delete gofind
 ``` 
 
+NOTE: A `go mod tidy` command is issued after a delete in order to ensure the go.mod file only reflects the packages required by current code in the project. If you later use the --restore option to recover the command, it may be necessary to use the --goget option to restore any third-party packages to the go.mod file. 
+
 ### Use --restore Option to Restore a Command Previously Deleted or Exported
 
 The --restore option adds the .go extension back to the source for a command that was preserved from a prior delete or export operation and recompiles the binary.
