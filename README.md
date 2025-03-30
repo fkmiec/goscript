@@ -28,6 +28,7 @@ Enter **Goscript**.
     - [Use --export Option to Export a Command's Source and Remove the Command from the Project](#use---export-option-to-export-a-commands-source-and-remove-the-command-from-the-project)
     - [Use --export-bin Option to Export a Command's Binary to the Current Directory and Remove it From the Project](#use---export-bin-option-to-export-a-commands-binary-to-the-current-directory-and-remove-it-from-the-project)
     - [Use --delete Option to "Soft Delete" a Command](#use---delete-option-to-soft-delete-a-command)
+    - [Use --restore Option to Restore a Command Previously Deleted or Exported](#use---restore-option-to-restore-a-command-previously-deleted-or-exported)
     - [Get Path to Project (support project maintenance)](#get-path-to-project-support-project-maintenance)
     - [Get Path to Source File (support editing)](#get-path-to-source-file-support-editing)
     - [Recompile Existing Commands](#recompile-existing-commands)
@@ -49,7 +50,7 @@ Scripting in Go should **_feel_** like scripting in other languages. You should 
 
 The **goscript** executable will wrap any code specified on the command line with a main function and apply any required imports before compiling and optionally executing the code. If no name is given, the binary will be `[project folder]/bin/gocmd` and the source file will be `[project folder]/src/gocmd.go`. If the name is given, the binary and source files will reflect that name. By adding the `[project]/bin` folder to your PATH environment variable, the resulting binaries will be immediately available to execute like other system commands (such as ls, cat, echo, grep, etc.). 
 
-If the --file option is used, then **goscript** will assume the file is a complete go source file and build it **_as is_**, rather than attempting to add imports and wrap code in a main function. However, to facilitate writing the go source file, the --template option is provided to print out a skeleton go source file as a starting point. That template can include imports and some basic code to start from if the --code option is provided. If the --name option is provided, the template will be saved to the project `src` folder for better IDE support when editing. The --edit option will open the file in the project src folder using your chosen editor. 
+If the --file option is used, then **goscript** will assume the file is a complete go source file and build it **_as is_**, rather than attempting to add imports and wrap code in a main function. However, to facilitate writing the go source file, the --template option will provide a skeleton go source file as a starting point. That template can include imports and some basic code to start from if the --code option is also used. If the --name option is provided, the template will be saved to the project `src` folder for better IDE support when editing. The --edit option will open the file in the project src folder using your chosen editor. 
 
 See examples, below, for more details. 
 
@@ -105,6 +106,8 @@ Options:
 	    Exports the named binary to the local directory and removes source and binary from project.
   --delete string
 	    Delete the specified compiled command. Removes .go extension from source file so it remains recoverable.
+  --restore string
+	    Restore a command after delete or export operation. Restores .go extension to the source file and recompiles.
   --goget|-g string
 	    Go get an external package (not part of stdlib) to pull into the project.
   --recompile
@@ -128,6 +131,14 @@ Example shebang in 'myscript.go' file:
   (1) Add '#!/usr/bin/env -S goscript' to the top of your go source file.
   (2) Set execute permission and type "./myscript.go" as you would with a shell script.
 ```
+
+A recommended workflow is:
+
+1. Use `goscript -x -c [your code]` with your first quick and dirty attempt at a script
+2. Use `goscript -t -n [name] -c [your code]` to create a complete source file in the project so you can expand on it. 
+3. Use `goscript -e [name]` to work on your initial code in the comfort of your IDE
+4. Use `goscript -n [name]` to recompile the binary and use it as a system-wide command 
+      OR use `goscript --export [name]` to output the source as a local shebang script
 
 ## Examples
 
@@ -354,6 +365,14 @@ With the --delete option, the binary for the command is deleted and the source f
 
 ```
 > $ goscript --delete gofind
+``` 
+
+### Use --restore Option to Restore a Command Previously Deleted or Exported
+
+The --restore option adds the .go extension back to the source for a command that was preserved from a prior delete or export operation and recompiles the binary.
+
+```
+> $ goscript --restore gofind
 ``` 
 
 ### Get Path to Project (support project maintenance)

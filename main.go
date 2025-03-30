@@ -134,6 +134,16 @@ func goGet(pkgName string) {
 	writeUserImports(userImports)
 }
 
+func goTidy() {
+	cmd := exec.Command("go", "mod", "tidy")
+	cmd.Dir = projectDir
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("%v: %s\n", err, out)
+	}
+}
+
 func editCommand(cmd string) {
 	srcFilename := projectDir + "/src/" + cmd + ".go"
 	if checkFileExists(srcFilename) {
@@ -279,6 +289,17 @@ func deleteCommand(cmd string) {
 	check(err)
 	err = os.Remove(binFilename)
 	check(err)
+	goTidy() //run go mod tidy to keep go.mod file current when you remove sources
+}
+
+// Soft delete. Renames source file without .go extension so it will be ignored. Removes binary.
+func restoreCommand(cmd string) {
+	sansGoExt := projectDir + "/src/" + cmd
+	srcFilename := sansGoExt + ".go"
+	binFilename := projectDir + "/bin/" + cmd
+	err := os.Rename(sansGoExt, srcFilename)
+	check(err)
+	compileBinary(srcFilename, binFilename)
 }
 
 func recompileCommands() {
@@ -390,6 +411,7 @@ func main() {
 	var toExport string
 	var binToExport string
 	var toDelete string
+	var toRestore string
 	var code string
 	var inputFile string
 	var listCommands bool
@@ -415,7 +437,8 @@ func main() {
 
 	flag.StringVar(&inputFile, "file", "", "A go src file, complete with main function and imports. Alternative to --code and --imports options.")
 	flag.StringVar(&inputFile, "f", "", "A go src file, complete with main function and imports. Alternative to --code and --imports options.")
-	flag.StringVar(&toDelete, "delete", "", "Delete the specified compiled command. Removes .go extension from source file so it remains recoverable.")
+	flag.StringVar(&toDelete, "delete", "", "Delete the specified compiled command. Removes .go extension from source file so it can be restored.")
+	flag.StringVar(&toRestore, "restore", "", "Restore a command after delete or export operation. Restores .go extension to the source file and recompiles.")
 
 	flag.StringVar(&path, "path", "", "Print the path to the source file specified, if exists in the project. Blank if not found.")
 	flag.StringVar(&path, "p", "", "Print the path to the source file specified, if exists in the project. Blank if not found.")
@@ -433,6 +456,7 @@ func main() {
 	flag.StringVar(&setupProject, "setup", "", "A name or absolute path. Creates a module project to be used by goscript. If no name is given, prints setup instructions.")
 	flag.BoolVar(&recompile, "recompile", false, "Recompile all existing source files in the project src directory.")
 	flag.StringVar(&toGoGet, "goget", "", "Go get an external package (not part of stdlib) to pull into the project.")
+	flag.StringVar(&toGoGet, "g", "", "Go get an external package (not part of stdlib) to pull into the project.")
 
 	flag.BoolVar(&execCode, "exec", false, "Execute the resulting binary.")
 	flag.BoolVar(&execCode, "x", false, "Execute the resulting binary.")
@@ -457,6 +481,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "  --export string\n\tExports the named script to stdout with shebang added and removes source and binary from project.")
 		fmt.Fprintln(os.Stderr, "  --export-bin string\n\tExports the named binary to the local directory and removes source and binary from project.")
 		fmt.Fprintln(os.Stderr, "  --delete string\n\tDelete the specified compiled command. Removes .go extension from source file so it remains recoverable.")
+		fmt.Fprintln(os.Stderr, "  --restore string\n\tRestore a command after delete or export operation. Restores .go extension to the source file and recompiles.")
 		fmt.Fprintln(os.Stderr, "  --goget|-g string\n\tGo get an external package (not part of stdlib) to pull into the project.")
 		fmt.Fprintln(os.Stderr, "  --recompile\n\tRecompile existing source files in the project src directory.")
 		fmt.Fprintln(os.Stderr, "  --setup\n\tA name, absolute path or 'help'. Creates a module project to be used by goscript. If 'help', prints setup instructions.")
@@ -617,6 +642,12 @@ func main() {
 	if toDelete != "" {
 		deleteCommand(toDelete)
 		return //Exit the program after deleting
+	}
+
+	//--restore: Restores the named binary that was previously deleted or exported. Adds the .go extension back to the source file and recompiles.
+	if toRestore != "" {
+		restoreCommand(toRestore)
+		return //Exit the program after restoring
 	}
 
 	//--file: Handle a regular go source file (potentially with a shebang (#!) at the top)
