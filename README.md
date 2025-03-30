@@ -2,7 +2,7 @@
 
 **Goscript** is a utility to make it easier to use Go as a scripting language. It was initially inspired by and implemented to leverage https://github.com/bitfield/script, a Go package aimed at bringing unix-like piped commands to Go.
 
-The Go compiler is fast enough that using Go for scripting tasks can be a good choice. There are challenges, however. The introduction of go modules caused a lot of confusion about GOPATH and the way go behaves depending on whether GO111MODULES=on, off or auto. There is no support for running short bits of code directly on the command line nor using a shebang at the top of a file to execute like a script. And there is no help with organizing your scripts so they are easily found, updated and applied wherever you need them.  
+The Go compiler is fast enough that using Go for scripting tasks can be a good choice. There are challenges, however. The introduction of go modules caused a lot of confusion about GOPATH and the way go behaves depending on whether GO111MODULE=on, off or auto. There is no support for running short bits of code directly on the command line nor using a shebang at the top of a file to execute like a script. And there is no help with organizing your scripts so they are easily found, updated and applied wherever you need them.  
 
 Enter **Goscript**.  
 
