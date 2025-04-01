@@ -23,7 +23,7 @@ Enter **Goscript**.
     - [Shebang (Linux and Mac only)](#shebang-linux-and-mac-only)
     - [List Saved Commands](#list-saved-commands)
     - [Use --edit Option to Edit a Command's Source in Context of the Project](#use---edit-option-to-edit-a-commands-source-in-context-of-the-project)
-    - [Use --cat Option to Print a Command's Source to Stdout](#use---cat-option-to-print-a-commands-source-to-stdout)
+    - [Use --cat Option to Print a Command's Source to Stdout OR Make a Copy if --name Provided](#use---cat-option-to-print-a-commands-source-to-stdout-or-make-a-copy-if---name-provided)
     - [Use --export Option to Export a Command's Source and Remove the Command from the Project](#use---export-option-to-export-a-commands-source-and-remove-the-command-from-the-project)
     - [Use --export-bin Option to Export a Command's Binary to the Current Directory and Remove it From the Project](#use---export-bin-option-to-export-a-commands-binary-to-the-current-directory-and-remove-it-from-the-project)
     - [Use --delete Option to "Soft Delete" a Command](#use---delete-option-to-soft-delete-a-command)
@@ -282,7 +282,7 @@ NOTE: If you pass the --name option, a **_copy_** of the source file is saved un
 
 You can add a shebang (ie. #!/path/to/my/command) to a go source file to make it executable like a shell script.  
 
-Just add `#!/usr/bin/env -S goscript` to the top of your go source file. The --template option includes the shebang in the template code it prints out. 
+Just add `#!/usr/bin/env -S goscript` to the top of your go source file. The --template and --code options include the shebang in the code printed to stdout. 
 
 ```
 #!/usr/bin/env -S goscript
@@ -308,7 +308,7 @@ Modify permissions to make it executable and run it directly like a shell script
 
 ```
 
-Running with shebang will be slightly less efficient since it will recompile the script each time it is executed. You may include the --name [name] option in the shebang line, or pass it as an additional argument on the command line the first time you execute the script (e.g. `./myscript --name mycommand`), in order to have the script compiled with a unique name. Thereafter, you can invoke the compiled script by that name (e.g. `mycommand`) for improved efficiency. 
+Running with shebang will be slightly less efficient since it will recompile the script each time it is executed. However, it might be advantageous if you intend the script to be modified often and only used locally. Alternatively, you may include the --name [name] option in the shebang line, or pass it as an additional argument on the command line the first time you execute the script (e.g. `./myscript --name mycommand`), in order to have the script compiled with a unique name. Thereafter, you can invoke the compiled script by that name (e.g. `mycommand`) for improved efficiency. 
 
 ### List Saved Commands
 
@@ -334,9 +334,9 @@ If you use an IDE, such as VSCode, and are accustomed to that type of tool suppo
 
 NOTE - If the environment variables are not set, **Goscript** will output a helpful reminder to set them.
 
-### Use --cat Option to Print a Command's Source to Stdout
+### Use --cat Option to Print a Command's Source to Stdout OR Make a Copy if --name Provided
 
-The --cat option will print the source of a command to stdout. You can use this to quickly inspect the source or to write it to a local file as the basis for a new local script. Unlike the --export option (see below), the source and binary remain in the project. 
+The --cat option will print the source of a command to stdout or copy it to another file in the project src directory if --name is provided. It's likely that many of the scripts you write will share some of the basic structure (e.g. read from stdin, process through a custom function, write to stdout). In that case, using --cat to copy the source of an existing command as a starting point may be a better alternative to the --template option. If printed to stdout, the shebang line will be added to the top of the file. Unlike the --export option (see below), the source and binary remain in the project. 
 
 ```
 > $ goscript --cat gofind

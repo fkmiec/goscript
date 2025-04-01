@@ -427,7 +427,7 @@ func main() {
 
 	flag.StringVar(&name, "name", "", "A name for your command.")
 	flag.StringVar(&name, "n", "", "A name for your command.")
-	flag.StringVar(&toCat, "cat", "", "Prints the named script to stdout. The source and binary remain in the project.")
+	flag.StringVar(&toCat, "cat", "", "Prints the script, or copies it to --name if provided. The original source and binary remain in the project.")
 	flag.StringVar(&toExport, "export", "", "Exports the named script to stdout with shebang added and removes source and binary from project.")
 	flag.StringVar(&binToExport, "export-bin", "", "Exports the named binary to local directory and removes source and binary from project.")
 	flag.StringVar(&toEdit, "edit", "", "Edit the named command in the editor specified by environment variable GOSCRIPT_EDITOR or EDITOR.")
@@ -477,7 +477,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "  --template|-t\n\tPrint a template go source file to stdout, or to the project src directory if --name provided.")
 		fmt.Fprintln(os.Stderr, "  --list|-l\n\tPrint the list of existing commands.")
 		fmt.Fprintln(os.Stderr, "  --path|-p string\n\tPrint the path to the source file specified, if exists in the project. Blank if not found.")
-		fmt.Fprintln(os.Stderr, "  --cat string\n\tPrints the named script to stdout. The source and binary remain in the project.")
+		fmt.Fprintln(os.Stderr, "  --cat string\n\tPrints the script, or copies it to --name if provided. The original source and binary remain in the project.")
 		fmt.Fprintln(os.Stderr, "  --export string\n\tExports the named script to stdout with shebang added and removes source and binary from project.")
 		fmt.Fprintln(os.Stderr, "  --export-bin string\n\tExports the named binary to the local directory and removes source and binary from project.")
 		fmt.Fprintln(os.Stderr, "  --delete string\n\tDelete the specified compiled command. Removes .go extension from source file so it remains recoverable.")
@@ -611,9 +611,16 @@ func main() {
 	if toCat != "" {
 		srcFilename := projectDir + "/src/" + toCat + ".go"
 		buf = readSourceFile(srcFilename)
-		//fmt.Println("#!/usr/bin/env -S " + os.Args[0]) //Add the shebang line when exporting a source file (assumption is outside project it will be a shebang script)
-		_, err := buf.WriteTo(os.Stdout)
-		check(err)
+		if name != "" {
+			copy := projectDir + "/src/" + name + ".go"
+			if writeSourceFile(copy, buf) {
+				fmt.Printf("A copy of %s was saved as %s", toCat, name)
+			}
+		} else {
+			fmt.Println("#!/usr/bin/env -S " + os.Args[0]) //Add the shebang line when printing to stdout (assumption is outside project it will be a shebang script)
+			_, err := buf.WriteTo(os.Stdout)
+			check(err)
+		}
 		return //Exit the program after printing
 	}
 
