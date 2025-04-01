@@ -98,7 +98,7 @@ Options:
   --path|-p string
 	    Print the path to the source file specified, if exists in the project. Blank if not found.
   --cat string
-  	  Prints the named script to stdout. The source and binary remain in the project.
+  	  Prints the script, or copies it to --name if provided. The original source and binary remain in the project.
   --export string
 	    Exports the named script to stdout with shebang added and removes source and binary from project.
   --export-bin string
