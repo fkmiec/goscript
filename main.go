@@ -614,7 +614,7 @@ func main() {
 		if name != "" {
 			copy := projectDir + "/src/" + name + ".go"
 			if writeSourceFile(copy, buf) {
-				fmt.Printf("A copy of %s was saved as %s", toCat, name)
+				fmt.Printf("A copy of %s was saved as %s\n", toCat, name)
 			}
 		} else {
 			fmt.Println("#!/usr/bin/env -S " + os.Args[0]) //Add the shebang line when printing to stdout (assumption is outside project it will be a shebang script)
