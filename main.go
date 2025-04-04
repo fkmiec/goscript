@@ -30,6 +30,7 @@ var version string = "goscript v1.2.1"
 var projectDir string
 var pkgMatcher *regexp.Regexp
 var buf *bytes.Buffer
+var savedErrors []string
 
 func assembleSourceFile(code string) *bytes.Buffer {
 	//If user wants to put main function body in a file and read it in, rather than cumbersome command line, we can do that.
@@ -80,17 +81,17 @@ func assembleSourceFile(code string) *bytes.Buffer {
 	}
 
 	buf = processTemplate(repl)
-	formatted, err := formatCode(buf.Bytes())
-	check(err)
-	buf.Reset()
-	buf.Write(formatted)
+	formatCode(buf)
 	return buf
 }
 
-func formatCode(bytes []byte) ([]byte, error) {
-	formatted, err := format.Source(bytes)
-	check(err)
-	return formatted, nil
+func formatCode(buf *bytes.Buffer) {
+	formatted, err := format.Source(buf.Bytes())
+	//If format succeeded, overwrite buffer with formatted code. If not, error will be printed at end of run.
+	if !check(err, 1, "Code formatting failed.") {
+		buf.Reset()
+		buf.Write(formatted)
+	}
 }
 
 func readUserImports() map[string]string {
@@ -98,7 +99,7 @@ func readUserImports() map[string]string {
 	filename := projectDir + "/imports.json"
 	if checkFileExists(filename) {
 		file, err := os.Open(filename)
-		check(err)
+		check(err, 2, "")
 		defer file.Close()
 
 		byteValue, _ := io.ReadAll(file)
@@ -110,9 +111,9 @@ func readUserImports() map[string]string {
 func writeUserImports(userImports map[string]string) {
 	filename := projectDir + "/imports.json"
 	jsonData, err := json.MarshalIndent(userImports, "", "    ") // Use MarshalIndent for pretty printing
-	check(err)
+	check(err, 2, "Unable to marshal content for imports.json file.")
 	err = os.WriteFile(filename, jsonData, 0644)
-	check(err)
+	check(err, 2, "")
 }
 
 func goGet(pkgName string) {
@@ -120,9 +121,7 @@ func goGet(pkgName string) {
 	cmd.Dir = projectDir
 
 	out, err := cmd.CombinedOutput()
-	if err != nil {
-		fmt.Printf("%v: %s\n", err, out)
-	}
+	check(err, 2, fmt.Sprintf("%v: %s", err, out))
 
 	//Add pkgName to imports.json file
 	pkgAlias := filepath.Base(pkgName)
@@ -139,8 +138,24 @@ func goTidy() {
 	cmd.Dir = projectDir
 
 	out, err := cmd.CombinedOutput()
-	if err != nil {
-		fmt.Printf("%v: %s\n", err, out)
+	check(err, 2, fmt.Sprintf("%v: %s\n", err, out))
+}
+
+func checkPkgErr(buf *bytes.Buffer) {
+	//Running gofmt on the file contents ensures imports are between parentheses and one per line
+	formatted, err := format.Source(buf.Bytes())
+	check(err, 2, "")
+	r1 := regexp.MustCompile(`(?s)import\s*\((.+)\)`)
+	r2 := regexp.MustCompile(`"(.+)"\s+`)
+	list := r1.FindSubmatch(formatted) //gets the "import (...)" string
+	if len(list) < 2 {
+		return //fmt.Println("No imports detected.")
+	}
+	importString := list[1]
+	matches := r2.FindAllSubmatch(importString, -1) //Match the individual imports
+	for i, m := range matches {
+		//check each import against the go.mod file. If not found, call go get.
+		fmt.Printf("%d: %s\n", i, m[1])
 	}
 }
 
@@ -160,10 +175,7 @@ func editCommand(cmd string) {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		err := cmd.Start()
-		if err != nil {
-			fmt.Fprintln(cmd.Stderr, err)
-			os.Exit(1)
-		}
+		check(err, 2, "")
 		cmd.Wait()
 	} else {
 		fmt.Printf("File not found in <project>/src directory for %s\n", cmd)
@@ -174,7 +186,7 @@ func editCommand(cmd string) {
 func readSourceFile(filename string) *bytes.Buffer {
 	// Using bufio.Scanner to read line by line
 	file, err := os.Open(filename)
-	check(err)
+	check(err, 2, "")
 
 	defer file.Close()
 
@@ -182,30 +194,33 @@ func readSourceFile(filename string) *bytes.Buffer {
 	var line string
 	buf = bytes.NewBuffer([]byte{})
 	for scanner.Scan() {
-
 		line = scanner.Text()
 		//strip out the shebang if present
 		if strings.HasPrefix(line, "#!") {
 			continue
 		}
-		_, err := buf.WriteString(line + "\n")
-		check(err)
+		buf.WriteString(line + "\n")
 	}
 
 	err = scanner.Err() //; err != nil {
-	check(err)
+	check(err, 2, "")   //Panic
 
 	return buf
 }
 
 func processTemplate(repl Repl) *bytes.Buffer {
+
+	//go(:)embed script.tmpl
+	//var vfs embed.FS
+	//tmpl, err := template.New("script.tmpl").ParseFS(vfs, "script.tmpl") //Embedding the template would be more efficient, but not embedding lets user change it w/o recompile.
+
 	var tmplFile = projectDir + "/script.tmpl"
 	tmpl, err := template.New("script.tmpl").ParseFiles(tmplFile)
-	check(err)
+	check(err, 2, "")
 
 	buf = bytes.NewBuffer([]byte{})
 	err = tmpl.Execute(buf, repl)
-	check(err)
+	check(err, 2, "")
 
 	return buf
 }
@@ -214,32 +229,32 @@ func writeSourceFile(filename string, buf *bytes.Buffer) bool {
 
 	// Open the file for writing, creates it if it doesn't exist, or truncates if it exists.
 	file, err := os.Create(filename)
-	check(err)
+	check(err, 2, "")
 
 	// Ensure the file is closed after the function returns.
 	defer file.Close()
 
 	// Write the buffer to the file
 	_, err = buf.WriteTo(file)
-	check(err)
+	check(err, 2, "")
 
 	return true
 }
 
 func copyFile(orig string, dest string) {
 	origFile, err := os.Open(orig)
-	check(err)
+	check(err, 2, "")
 	defer origFile.Close()
 
 	destFile, err := os.Create(dest)
-	check(err)
+	check(err, 2, "")
 	defer destFile.Close()
 
 	_, err = io.Copy(destFile, origFile)
-	check(err)
+	check(err, 2, "Failed to copy "+orig+" to "+dest)
 
 	err = os.Chmod(dest, 0766)
-	check(err)
+	check(err, 2, "Failed to set permissions on "+dest)
 }
 
 func getProjectPath() string {
@@ -256,12 +271,12 @@ func getProjectPath() string {
 				os.Mkdir(binDir, 0766)
 			}
 		} else {
-			fmt.Printf("Directory specified by GOSCRIPT_PROJECT_DIR not found: %s\n", executableDir)
-			os.Exit(1)
+			err := fmt.Errorf("Directory specified by GOSCRIPT_PROJECT_DIR not found: %s\n", executableDir)
+			check(err, 2, "")
 		}
 	} else {
 		executablePath, err := os.Executable()
-		check(err)
+		check(err, 2, "Unable to get project path relative to executable")
 		executableDir = filepath.Dir(executablePath)
 	}
 	return executableDir
@@ -269,8 +284,9 @@ func getProjectPath() string {
 
 func getSourceList() []string {
 	cmds := []string{}
-	list, err := os.ReadDir(projectDir + "/src")
-	check(err)
+	srcDir := projectDir + "/src"
+	list, err := os.ReadDir(srcDir)
+	check(err, 1, "Error reading directory "+srcDir)
 	for _, entry := range list {
 		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".go") {
 			cmds = append(cmds, entry.Name())
@@ -286,9 +302,9 @@ func deleteCommand(cmd string) {
 	srcFilename := sansGoExt + ".go"
 	binFilename := projectDir + "/bin/" + cmd
 	err := os.Rename(srcFilename, sansGoExt)
-	check(err)
+	check(err, 2, "")
 	err = os.Remove(binFilename)
-	check(err)
+	check(err, 2, "")
 	goTidy() //run go mod tidy to keep go.mod file current when you remove sources
 }
 
@@ -298,7 +314,7 @@ func restoreCommand(cmd string) {
 	srcFilename := sansGoExt + ".go"
 	binFilename := projectDir + "/bin/" + cmd
 	err := os.Rename(sansGoExt, srcFilename)
-	check(err)
+	check(err, 2, "")
 	compileBinary(srcFilename, binFilename)
 }
 
@@ -318,7 +334,17 @@ func compileBinary(srcFilename, binFilename string) {
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		fmt.Printf("%v: %s\n", err, out)
+		re := regexp.MustCompile(`go get (.+)`)
+		matches := re.FindAllSubmatch(out, -1)
+		if len(matches) > 0 {
+			for _, m := range matches {
+				pkg := strings.TrimSpace(string(m[1]))
+				goGet(pkg)
+			}
+			compileBinary(srcFilename, binFilename)
+		} else {
+			check(err, 2, fmt.Sprintf("%v: %s\n", err, out))
+		}
 	}
 }
 
@@ -339,14 +365,9 @@ func createNewProject(dir string) {
 	isAbsolute := filepath.IsAbs(dir)
 	if !isAbsolute {
 		pwd, err := os.Getwd()
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
+		check(err, 2, "Unable to create project at "+dir)
 		projectDir = pwd + "/" + dir
 	}
-
-	fmt.Printf("Absolute path: %s\n", projectDir)
 
 	//Create project directory if not exist
 	if !checkFileExists(projectDir) {
@@ -358,17 +379,13 @@ func createNewProject(dir string) {
 	cmd := exec.Command("go", "mod", "init", projectName)
 	cmd.Dir = projectDir
 	out, err := cmd.CombinedOutput()
-	if err != nil {
-		fmt.Printf("%v: %s\n", err, out)
-	}
+	check(err, 2, fmt.Sprintf("%v: %s\n", err, out))
 
 	//Run go get github.com/bitfield/script
 	cmd = exec.Command("go", "get", "github.com/bitfield/script")
 	cmd.Dir = projectDir
 	out, err = cmd.CombinedOutput()
-	if err != nil {
-		fmt.Printf("%v: %s\n", err, out)
-	}
+	check(err, 2, fmt.Sprintf("%v: %s\n", err, out))
 
 	//Create 'src' and 'bin' subdirectories
 	srcDir := projectDir + "/src"
@@ -380,7 +397,7 @@ func createNewProject(dir string) {
 	// Open the file for writing, creates it if it doesn't exist, or truncates if it exists.
 	filename := projectDir + "/script.tmpl"
 	file, err := os.Create(filename)
-	check(err)
+	check(err, 2, "")
 	defer file.Close()
 	file.WriteString("package main\n\nimport ( {{range .Imports}}\n\t{{.}}{{ end }}\n)\n\nfunc main() {\n\t{{.Code}}\n}\n")
 
@@ -397,10 +414,36 @@ func checkFileExists(filePath string) bool {
 	return !errors.Is(error, os.ErrNotExist)
 }
 
-func check(e error) {
+func check(e error, errLevel int, customMsg string) bool {
 	if e != nil {
-		panic(e)
+		if errLevel == 0 { //errLevel 0: Save the error message and print at end of program run
+			var msg string
+			if customMsg != "" {
+				msg = fmt.Sprintf("%s:\n%s\n", customMsg, e.Error())
+			} else {
+				msg = e.Error()
+			}
+			savedErrors = append(savedErrors, msg)
+		} else if errLevel == 1 { //errLevel == 1: Print msg and return
+			if customMsg != "" {
+				fmt.Fprintf(os.Stderr, "%s:\n%s\n", customMsg, e.Error())
+			} else {
+				fmt.Fprintf(os.Stderr, fmt.Sprintf("%s\n", e.Error()))
+			}
+		} else if errLevel == 2 { //errLevel == 2: Print msg and quit
+			if customMsg != "" {
+				fmt.Fprintf(os.Stderr, "%s:\n%s\n", customMsg, e.Error())
+			} else {
+				fmt.Fprintf(os.Stderr, fmt.Sprintf("%s\n", e.Error()))
+			}
+			os.Exit(1)
+		} else if errLevel == 3 { //errLevel == 3: Panic (quit the program and print stack trace)
+			panic(e)
+		} //errLevel -1 or really any other: Just return true indicating there was an error and let caller handle it.
+		return true
 	}
+	//No error, so return false.
+	return false
 }
 
 func main() {
@@ -596,7 +639,7 @@ func main() {
 		} else {
 			fmt.Println("#!/usr/bin/env -S " + os.Args[0]) //Add the shebang line when printing a template
 			_, err := buf.WriteTo(os.Stdout)
-			check(err)
+			check(err, 2, "Failed to print template")
 			return //Exit the program after printing the template
 		}
 	}
@@ -619,7 +662,7 @@ func main() {
 		} else {
 			fmt.Println("#!/usr/bin/env -S " + os.Args[0]) //Add the shebang line when printing to stdout (assumption is outside project it will be a shebang script)
 			_, err := buf.WriteTo(os.Stdout)
-			check(err)
+			check(err, 2, "Failed to print "+srcFilename)
 		}
 		return //Exit the program after printing
 	}
@@ -631,7 +674,7 @@ func main() {
 		buf = readSourceFile(srcFilename)
 		fmt.Println("#!/usr/bin/env -S " + os.Args[0]) //Add the shebang line when exporting a source file (assumption is outside project it will be a shebang script)
 		_, err := buf.WriteTo(os.Stdout)
-		check(err)
+		check(err, 2, "Failed to export "+srcFilename)
 		deleteCommand(toExport)
 		return //Exit the program after exporting
 	}
