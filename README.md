@@ -344,7 +344,7 @@ The --cat option will print the source of a command to stdout or copy it to anot
 
 ### Use --export Option to Export a Command's Source and Remove the Command from the Project
 
-The --export option writes the source of a command, with the shebang added at the top, to stdout. This is intended to facilitate converting a global command on the PATH into a local script. The function of the --delete option (see below) is invoked after the binary is moved. You can use --cat option if you simply want to see the source of a command or want to use it as a starting point for a new command or script. 
+The --export option writes the source of a command, with the shebang added at the top, to stdout. This is intended to facilitate converting a global command on the PATH into a local script. The function of the --delete option (see below) is invoked after the command is exported. You can use --cat option if you simply want to see the source of a command or want to use it as a starting point for a new command or script. 
 
 ```
 > $ goscript --export gofind
