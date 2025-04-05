@@ -40,7 +40,8 @@ Enter **Goscript**.
 * Execute simple go code directly on the command line
 * Write go source files anywhere in your filesystem and execute them like a script with shebang
 * Compile go code into named binaries you can use anywhere like common system commands (e.g. cat, echo, ls, grep, find, etc.) 
-* Support to make writing short scripts easier, like handling boilerplate and automating imports 
+* Support to make writing short scripts easier, like handling boilerplate and automating imports
+* Automatically downloads missing modules required by imports (and auto removes them if code importing them is deleted)
 * Organizes everything in one dedicated project, accessible system-wide through the **goscript** command
 * Options to generate templates for go scripts, list existing commands and print paths to project and source code to facilitate editing and maintenance. 
 * Flexibility. If you want to write a shebang script for local use, great. If you want to write a throw-away one-liner with hard-coded arguments, no problem. If you want to write a reusable system command ... why not? It's your choice. 
@@ -109,6 +110,8 @@ Options:
 	    Restore a command after delete or export operation. Restores .go extension to the source file and recompiles.
   --goget|-g string
 	    Go get an external package (not part of stdlib) to pull into the project.
+  --gotidy
+	    Run go mod tidy (remove modules from go.mod file that are no longer required.
   --recompile
 	    Recompile existing source files in the project src directory.
   --setup

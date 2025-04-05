@@ -88,7 +88,7 @@ func assembleSourceFile(code string) *bytes.Buffer {
 func formatCode(buf *bytes.Buffer) {
 	formatted, err := format.Source(buf.Bytes())
 	//If format succeeded, overwrite buffer with formatted code. If not, error will be printed at end of run.
-	if !check(err, 1, "Code formatting failed.") {
+	if !check(err, 1, "Code formatting failed") {
 		buf.Reset()
 		buf.Write(formatted)
 	}
@@ -139,24 +139,6 @@ func goTidy() {
 
 	out, err := cmd.CombinedOutput()
 	check(err, 2, fmt.Sprintf("%v: %s\n", err, out))
-}
-
-func checkPkgErr(buf *bytes.Buffer) {
-	//Running gofmt on the file contents ensures imports are between parentheses and one per line
-	formatted, err := format.Source(buf.Bytes())
-	check(err, 2, "")
-	r1 := regexp.MustCompile(`(?s)import\s*\((.+)\)`)
-	r2 := regexp.MustCompile(`"(.+)"\s+`)
-	list := r1.FindSubmatch(formatted) //gets the "import (...)" string
-	if len(list) < 2 {
-		return //fmt.Println("No imports detected.")
-	}
-	importString := list[1]
-	matches := r2.FindAllSubmatch(importString, -1) //Match the individual imports
-	for i, m := range matches {
-		//check each import against the go.mod file. If not found, call go get.
-		fmt.Printf("%d: %s\n", i, m[1])
-	}
 }
 
 func editCommand(cmd string) {
@@ -286,9 +268,9 @@ func getSourceList() []string {
 	cmds := []string{}
 	srcDir := projectDir + "/src"
 	list, err := os.ReadDir(srcDir)
-	check(err, 1, "Error reading directory "+srcDir)
+	check(err, 1, "")
 	for _, entry := range list {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".go") {
+		if !entry.IsDir() {
 			cmds = append(cmds, entry.Name())
 		}
 	}
@@ -302,9 +284,9 @@ func deleteCommand(cmd string) {
 	srcFilename := sansGoExt + ".go"
 	binFilename := projectDir + "/bin/" + cmd
 	err := os.Rename(srcFilename, sansGoExt)
-	check(err, 2, "")
+	check(err, 1, "")
 	err = os.Remove(binFilename)
-	check(err, 2, "")
+	check(err, 1, "")
 	goTidy() //run go mod tidy to keep go.mod file current when you remove sources
 }
 
@@ -322,6 +304,9 @@ func recompileCommands() {
 	commands := getSourceList()
 	var srcFilename, binFilename string
 	for _, name := range commands {
+		if !strings.HasSuffix(name, ".go") {
+			continue
+		}
 		srcFilename = projectDir + "/src/" + name
 		binFilename = projectDir + "/bin/" + name[:len(name)-3] //removes .go from binary filename
 		compileBinary(srcFilename, binFilename)
@@ -343,7 +328,7 @@ func compileBinary(srcFilename, binFilename string) {
 			}
 			compileBinary(srcFilename, binFilename)
 		} else {
-			check(err, 2, fmt.Sprintf("%v: %s\n", err, out))
+			check(err, 2, "") //fmt.Sprintf("%v: %s\n", err, out)
 		}
 	}
 }
@@ -461,6 +446,7 @@ func main() {
 	var recompile bool
 	var setupProject string
 	var toGoGet string
+	var doTidy bool
 	var path string
 	var printDir bool
 	var printTemplate bool
@@ -500,6 +486,7 @@ func main() {
 	flag.BoolVar(&recompile, "recompile", false, "Recompile all existing source files in the project src directory.")
 	flag.StringVar(&toGoGet, "goget", "", "Go get an external package (not part of stdlib) to pull into the project.")
 	flag.StringVar(&toGoGet, "g", "", "Go get an external package (not part of stdlib) to pull into the project.")
+	flag.BoolVar(&doTidy, "gotidy", false, "Run go mod tidy (remove modules from go.mod file that are no longer required.)")
 
 	flag.BoolVar(&execCode, "exec", false, "Execute the resulting binary.")
 	flag.BoolVar(&execCode, "x", false, "Execute the resulting binary.")
@@ -526,6 +513,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "  --delete string\n\tDelete the specified compiled command. Removes .go extension from source file so it remains recoverable.")
 		fmt.Fprintln(os.Stderr, "  --restore string\n\tRestore a command after delete or export operation. Restores .go extension to the source file and recompiles.")
 		fmt.Fprintln(os.Stderr, "  --goget|-g string\n\tGo get an external package (not part of stdlib) to pull into the project.")
+		fmt.Fprintln(os.Stderr, "  --gotidy\n\tRun go mod tidy (remove modules from go.mod file that are no longer required.")
 		fmt.Fprintln(os.Stderr, "  --recompile\n\tRecompile existing source files in the project src directory.")
 		fmt.Fprintln(os.Stderr, "  --setup\n\tA name, absolute path or 'help'. Creates a module project to be used by goscript. If 'help', prints setup instructions.")
 		fmt.Fprintln(os.Stderr, "  --dir|-d\n\tPrint the directory path to the project.")
@@ -611,6 +599,10 @@ func main() {
 	if listCommands {
 		cmds := getSourceList() //Assumes binary list is same. Not true if template files that were never compiled, but should be rare.
 		for _, cmd := range cmds {
+			if !strings.HasSuffix(cmd, ".go") {
+				fmt.Printf("%s (requires --restore)\n", cmd)
+				continue
+			}
 			fmt.Printf("%s\n", cmd[:len(cmd)-3]) //Remove the .go extension.
 		}
 		return //Exit the program after printing the list of commands
@@ -620,6 +612,12 @@ func main() {
 	if toGoGet != "" {
 		goGet(toGoGet)
 		return //Exit after go get package
+	}
+
+	//--gotidy: Execute a go mod tidy to cleanup modules no longer required.
+	if doTidy {
+		goTidy()
+		return //Exit after go mod tidy
 	}
 
 	//--recompile: Recompile existing sources
@@ -639,7 +637,7 @@ func main() {
 		} else {
 			fmt.Println("#!/usr/bin/env -S " + os.Args[0]) //Add the shebang line when printing a template
 			_, err := buf.WriteTo(os.Stdout)
-			check(err, 2, "Failed to print template")
+			check(err, 2, "")
 			return //Exit the program after printing the template
 		}
 	}
@@ -662,7 +660,7 @@ func main() {
 		} else {
 			fmt.Println("#!/usr/bin/env -S " + os.Args[0]) //Add the shebang line when printing to stdout (assumption is outside project it will be a shebang script)
 			_, err := buf.WriteTo(os.Stdout)
-			check(err, 2, "Failed to print "+srcFilename)
+			check(err, 2, "")
 		}
 		return //Exit the program after printing
 	}
