@@ -40,6 +40,7 @@ Enter **Goscript**.
 * Execute simple go code directly on the command line
 * Write go source files anywhere in your filesystem and execute them like a script with shebang
 * Compile go code into named binaries you can use anywhere like common system commands (e.g. cat, echo, ls, grep, find, etc.) 
+* Returns the correct exit code whether run as a script (via --exec or shebang) or directly as a compiled binary.
 * Support to make writing short scripts easier, like handling boilerplate and automating imports
 * Automatically downloads missing modules required by imports (and auto removes them if code importing them is deleted)
 * Organizes everything in one dedicated project, accessible system-wide through the **goscript** command
