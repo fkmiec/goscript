@@ -733,9 +733,10 @@ func main() {
 		cmd.Stderr = os.Stderr
 		err := cmd.Start()
 		if err != nil {
-			fmt.Fprintln(cmd.Stderr, err)
+			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
 		cmd.Wait()
+		os.Exit(cmd.ProcessState.ExitCode())
 	}
 }
