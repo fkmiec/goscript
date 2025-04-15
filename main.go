@@ -328,7 +328,7 @@ func compileBinary(srcFilename, binFilename string) {
 			}
 			compileBinary(srcFilename, binFilename)
 		} else {
-			check(err, 2, "") //fmt.Sprintf("%v: %s\n", err, out)
+			check(err, 2, string(out)) //fmt.Sprintf("%v: %s\n", err, out)
 		}
 	}
 }
@@ -404,20 +404,20 @@ func check(e error, errLevel int, customMsg string) bool {
 		if errLevel == 0 { //errLevel 0: Save the error message and print at end of program run
 			var msg string
 			if customMsg != "" {
-				msg = fmt.Sprintf("%s:\n%s\n", customMsg, e.Error())
+				msg = fmt.Sprintf("%s\n%s\n", strings.TrimSpace(customMsg), e.Error())
 			} else {
 				msg = e.Error()
 			}
 			savedErrors = append(savedErrors, msg)
 		} else if errLevel == 1 { //errLevel == 1: Print msg and return
 			if customMsg != "" {
-				fmt.Fprintf(os.Stderr, "%s:\n%s\n", customMsg, e.Error())
+				fmt.Fprintf(os.Stderr, "%s\n%s\n", strings.TrimSpace(customMsg), e.Error())
 			} else {
 				fmt.Fprintf(os.Stderr, fmt.Sprintf("%s\n", e.Error()))
 			}
 		} else if errLevel == 2 { //errLevel == 2: Print msg and quit
 			if customMsg != "" {
-				fmt.Fprintf(os.Stderr, "%s:\n%s\n", customMsg, e.Error())
+				fmt.Fprintf(os.Stderr, "%s\n%s\n", strings.TrimSpace(customMsg), e.Error())
 			} else {
 				fmt.Fprintf(os.Stderr, fmt.Sprintf("%s\n", e.Error()))
 			}
