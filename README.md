@@ -12,7 +12,6 @@ Enter **Goscript**.
   - [Install](#install)
   - [Usage](#usage)
   - [Examples](#examples)
-    - [Compile and Execute in Two Steps](#compile-and-execute-in-two-steps)
     - [Compile and Execute in One Step with --exec](#compile-and-execute-in-one-step-with---exec)
     - [Name the Command for Repeat Use](#name-the-command-for-repeat-use)
     - [Required Imports Added Automatically](#required-imports-added-automatically)
@@ -47,7 +46,7 @@ Enter **Goscript**.
 
 ## How It Works
 
-The **goscript** executable will wrap any code specified on the command line with a main function and apply any required imports before compiling and optionally executing the code. If no name is given, the binary will be `[project folder]/bin/gocmd` and the source file will be `[project folder]/src/gocmd.go`. If the name is given, the binary and source files will reflect that name. By adding the `[project]/bin` folder to your PATH environment variable, the resulting binaries will be immediately available to execute like other system commands (such as ls, cat, echo, grep, etc.). 
+The **goscript** executable will wrap any code specified on the command line with a main function and apply any required imports before compiling and optionally executing the code. If no name is given, temporary files will be created and cleaned up. If a name is provided, then the binary file will be `[project folder]/bin/[name]` and the source file will be `[project folder]/src/[name].go`. By adding the `[project]/bin` folder to your PATH environment variable, the resulting named binaries will be immediately available to execute like other system commands (such as ls, cat, echo, grep, etc.). 
 
 If the --file option is used, then **goscript** will assume the file is a complete go source file and build it **_as is_**, rather than attempting to add imports and wrap code in a main function. However, to facilitate writing the go source file, the --template option will provide a skeleton go source file as a starting point. That template can include imports and some basic code to start from if the --code option is also used. If the --name option is provided, the template will be saved to the project `src` folder for better IDE support when editing. The --edit option will then enable you to open the file in the project src folder using your chosen editor. 
 
@@ -133,20 +132,9 @@ A recommended workflow is:
 
 NOTE - For clarity, the long-form flags are used in the examples. 
 
-### Compile and Execute in Two Steps
-
-The code is compiled into a binary called `gocmd` in the `[project]/bin` folder. Since that folder is on your PATH, the command is immediately available to execute system-wide. 
-
-```
-> $ goscript --code 'script.FindFiles("/home/user/.config").Match("vlc").Stdout()'
-> $ gocmd                                                                      
-/home/user/.config/vlc/vlc-qt-interface.conf
-/home/user/.config/vlc/vlcrc
-```
-
 ### Compile and Execute in One Step with --exec
 
-Adding the --exec option will cause the code to be executed immediately after compilation (similar to 'go run').
+Use the --code option to specify Go code directly on the command line. Adding the --exec option will cause the code to be executed immediately after compilation (similar to 'go run').
 
 ```
 > $ goscript --exec --code 'script.FindFiles("/home/user/.config").Match("vlc").Stdout()'
@@ -306,7 +294,6 @@ Can't remember that command you wrote last week? The --list option will show you
 
 ```
 > $ goscript --list 
-gocmd
 gofind
 greet
 shebang

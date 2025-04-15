@@ -11,12 +11,15 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"sort"
 	"strings"
+	"syscall"
 	"text/template"
+	"time"
 
 	"github.com/fkmiec/goscript/util"
 )
@@ -26,7 +29,7 @@ type Repl struct {
 	Code    string
 }
 
-var version string = "goscript v1.2.1"
+var version string = "goscript v1.2.3"
 var projectDir string
 var pkgMatcher *regexp.Regexp
 var buf *bytes.Buffer
@@ -117,6 +120,16 @@ func writeUserImports(userImports map[string]string) {
 }
 
 func goGet(pkgName string) {
+
+	//If no changes to go.mod in a week, run go mod tidy
+	//Intent is to NOT run go mod tidy every time goGet is required.
+	//	For unnamed code (e.g. shebang script), could result in go get for every invocation.
+	fileInfo, err := os.Stat(projectDir + "/go.mod")
+	check(err, 2, "Could not stat go.mod file.")
+	if fileInfo.ModTime().Before(time.Now().Add(-7 * 24 * time.Hour)) {
+		goTidy()
+	}
+
 	cmd := exec.Command("go", "get", pkgName)
 	cmd.Dir = projectDir
 
@@ -309,11 +322,13 @@ func recompileCommands() {
 		}
 		srcFilename = projectDir + "/src/" + name
 		binFilename = projectDir + "/bin/" + name[:len(name)-3] //removes .go from binary filename
-		compileBinary(srcFilename, binFilename)
+		if !compileBinary(srcFilename, binFilename) {
+			os.Exit(1)
+		}
 	}
 }
 
-func compileBinary(srcFilename, binFilename string) {
+func compileBinary(srcFilename, binFilename string) bool {
 	cmd := exec.Command("go", "build", "-o", binFilename, srcFilename)
 	cmd.Dir = projectDir
 
@@ -328,9 +343,12 @@ func compileBinary(srcFilename, binFilename string) {
 			}
 			compileBinary(srcFilename, binFilename)
 		} else {
-			check(err, 2, string(out)) //fmt.Sprintf("%v: %s\n", err, out)
+			if check(err, 1, string(out)) { //fmt.Sprintf("%v: %s\n", err, out)
+				return false
+			}
 		}
 	}
+	return true
 }
 
 func createNewProject(dir string) {
@@ -391,6 +409,19 @@ func createNewProject(dir string) {
 	fmt.Printf("To complete setup:\n")
 	fmt.Printf("\t1. Set environment variable GOSCRIPT_PROJECT_DIR=%s\n", projectDir)
 	fmt.Printf("\t2. Add %s to your PATH environment variable.\n", binDir)
+}
+
+func cleanTemporaryFiles(name string) {
+	srcFilename := projectDir + "/src/" + name + ".go"
+	binFilename := projectDir + "/bin/" + name
+	if checkFileExists(srcFilename) {
+		err := os.Remove(srcFilename)
+		check(err, 1, "")
+	}
+	if checkFileExists(binFilename) {
+		err := os.Remove(binFilename)
+		check(err, 1, "")
+	}
 }
 
 func checkFileExists(filePath string) bool {
@@ -714,18 +745,35 @@ func main() {
 		os.Exit(1)
 	}
 
-	//Save source and compile binary
+	//Temporary name needed to save source and compile binary
+	var isTemporary bool
 	if name == "" {
-		name = "gocmd"
+		name = fmt.Sprintf("gocmd-%d", time.Now().UnixNano()) //temporary name, not for user. Will be deleted after exec.
+		isTemporary = true
 	}
 	srcFilename := projectDir + "/src/" + name + ".go"
 	binFilename := projectDir + "/bin/" + name
 
 	writeSourceFile(srcFilename, buf)
-	compileBinary(srcFilename, binFilename)
+	if !compileBinary(srcFilename, binFilename) {
+		if isTemporary {
+			cleanTemporaryFiles(name)
+		}
+		os.Exit(1)
+	}
 
-	//Experiment
 	if execCode {
+
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+		go func() {
+			<-c
+			if isTemporary {
+				cleanTemporaryFiles(name)
+			}
+			os.Exit(1)
+		}()
+
 		//Pass in any args intended for the subprocess
 		cmd := exec.Command(binFilename, subprocessArgs...)
 		cmd.Stdin = os.Stdin
@@ -734,9 +782,18 @@ func main() {
 		err := cmd.Start()
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
+			if isTemporary {
+				cleanTemporaryFiles(name)
+			}
 			os.Exit(1)
 		}
 		cmd.Wait()
+		if isTemporary {
+			cleanTemporaryFiles(name)
+		}
 		os.Exit(cmd.ProcessState.ExitCode())
+	}
+	if isTemporary {
+		cleanTemporaryFiles(name)
 	}
 }
