@@ -10,8 +10,6 @@ Enter **Goscript**.
   - [Features](#features)
   - [How It Works](#how-it-works)
   - [Install](#install)
-    - [Option 1 - Clone or Fork This Repo](#option-1---clone-or-fork-this-repo)
-    - [Option 2 - Go Install and goscript --setup](#option-2---go-install-and-goscript---setup)
   - [Usage](#usage)
   - [Examples](#examples)
     - [Compile and Execute in Two Steps](#compile-and-execute-in-two-steps)
@@ -59,18 +57,6 @@ See examples, below, for more details.
 
 **Goscript** is ultimately about compiling Go code into binaries, so a Go module project is required to build your scripts. Further, the resulting binaries need to be on your path to be accessible. Follow these steps to get setup:
 
-### Option 1 - Clone or Fork This Repo
-
-1. Clone this repo and re-build the binary (if necessary ... binary was compiled on linux) with `go build -o goscript main.go`
-
-2. Edit your **PATH** environment variable to include:
-   1. **The project directory** created in Step 1 (ie. the location of the **goscript** binary). This will enable the **goscript** command to be executed from anywhere in your filesystem.
-   2. **The `bin` sub-directory within the project directory** (ie. the location where all of the binaries for your scripts will be written). This will enable your scripted commands to be executed immediately from anywhere in your filesystem.
-   
-3. Optionally set the GOSCRIPT_EDITOR (or EDITOR) environment variable to the name of the editor you prefer to use for editing (e.g. "code" or "vim").
-
-### Option 2 - Go Install and goscript --setup
-
 1. Call `go install github.com/fkmiec/goscript@latest` This will install the goscript binary, which should ensure it is on your **PATH**. 
 
 2. Call `goscript --setup <project name>` to setup a new project to host go scripts and follow instructions to set required environment variables.
@@ -115,7 +101,7 @@ Options:
 	    Run go mod tidy (remove modules from go.mod file that are no longer required.
   --recompile
 	    Recompile existing source files in the project src directory.
-  --setup
+  --setup string
 	    A name, absolute path or 'help'. Creates a module project to be used by goscript. If 'help', prints setup instructions.
   --dir|-d
 	    Print the directory path to the project.
